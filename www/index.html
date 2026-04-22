@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * 'self' data: https:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Filminho</title>
+  
+  <link rel="stylesheet" href="framework7/framework7-bundle.min.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  
+  <style>
+    :root {
+      --f7-theme-color: #00e054;
+      --f7-page-bg-color: #0b0c10;
+      --f7-bars-bg-color: #121418;
+      /* Forçando variáveis do sistema a serem claras */
+      --f7-text-color: #ffffff; 
+      --f7-label-text-color: #ffffff;
+      --f7-block-title-text-color: #00e054;
+    }
+    
+    /* RESET DE CONTRASTE TOTAL */
+    body, .page, .page-content, p, span, div, .item-title, .item-after, .block {
+      color: #ffffff !important; /* Branco puro para tudo */
+    }
+
+    .item-after {
+      color: #00e054 !important; /* Mantém as notas em verde */
+      font-weight: bold;
+    }
+
+    .toolbar-bottom { background-color: #121418 !important; border-top: 1px solid #1f2228; }
+    
+    /* CATEGORIAS */
+    .chip-container { display: flex; overflow-x: auto; gap: 10px; padding: 15px; background: transparent; scrollbar-width: none; }
+    .chip-categoria { background: #1f2228; color: #ffffff !important; padding: 8px 18px; border-radius: 20px; font-size: 14px; white-space: nowrap; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+    .chip-categoria.active { background: #00e054; color: #000000 !important; border-color: #00e054; }
+
+    /* BUSCA */
+    .home-searchbar { margin: 10px 15px; background: #1a1c23; border-radius: 8px; padding: 10px; display: flex; align-items: center; border: 1px solid rgba(255,255,255,0.2); }
+    .home-searchbar input { background: transparent; border: none; color: #ffffff !important; width: 100%; font-size: 16px; outline: none; margin-left: 10px; }
+    .home-searchbar input::placeholder { color: #888 !important; }
+
+    /* CARDS DE FILMES */
+    .poster-title { 
+      font-size: 13px; 
+      color: #ffffff !important; 
+      margin-top: 8px; 
+      font-weight: 600; 
+      text-shadow: 1px 1px 2px #000; /* Ajuda a ler sobre qualquer fundo */
+    }
+    .scroller-horizontal { display: flex; overflow-x: auto; gap: 12px; padding-bottom: 15px; scrollbar-width: none; }
+    .poster-card { min-width: 110px; max-width: 110px; cursor: pointer; }
+    .poster-card img { width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.05); }
+
+    /* GRADE DE CATEGORIAS */
+    .grid-categorias { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 0 10px; }
+    .grid-categorias .poster-card { min-width: unset; max-width: 100%; }
+
+    /* DETALHES */
+    .detalhes-header { width: 100%; height: 250px; background-size: cover; background-position: center; position: relative; }
+    .detalhes-header::after { content: ''; position: absolute; bottom: 0; width: 100%; height: 100%; background: linear-gradient(to top, #0b0c10 15%, transparent); }
+    .ator-card { min-width: 85px; text-align: center; }
+    .ator-card img { width: 65px; height: 65px; border-radius: 50%; object-fit: cover; border: 2px solid #1f2228; }
+    .ator-card div { color: #ffffff !important; font-size: 11px; margin-top: 4px; }
+    
+    /* TÍTULOS DE SESSÃO */
+    .block-title { color: #00e054 !important; font-weight: 800 !important; font-size: 18px !important; text-transform: uppercase; letter-spacing: 1px; }
+
+    .dialog { background-color: #1a1c23 !important; border-radius: 14px; border: 1px solid rgba(255,255,255,0.1); }
+    .dialog-inner { background: transparent !important; }
+    .dialog-title { color: #ffffff !important; font-weight: 800; font-size: 18px; }
+    .dialog-text { color: #c5c6c7 !important; }
+    .dialog-button { color: #00e054 !important; background: rgba(0, 224, 84, 0.05) !important; font-weight: bold; }
+    
+    .dialog-input-wrap input { 
+      background-color: #0b0c10 !important; 
+      color: #ffffff !important; 
+      border: 1px solid #333 !important; 
+      border-radius: 6px !important; 
+      padding: 5px 10px !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="theme-dark">
+    <div class="view view-main">
+      <div class="page" data-name="home">
+        
+        <div class="navbar">
+          <div class="navbar-bg"></div>
+          <div class="navbar-inner">
+            <div class="title" style="color: #00e054; font-weight: 800; font-size: 24px; letter-spacing: -1px;">🍿 Filminho</div>
+          </div>
+        </div>
+
+        <div class="toolbar toolbar-bottom tabbar tabbar-icons">
+          <div class="toolbar-inner">
+            <a href="#tab-home" class="tab-link tab-link-active" onclick="mostrarInicioMenu()"><i class="icon material-icons">home</i><span class="tabbar-label">Início</span></a>
+            <a href="#tab-perfil" class="tab-link"><i class="icon material-icons">person</i><span class="tabbar-label">Perfil</span></a>
+          </div>
+        </div>
+
+        <div class="tabs">
+          
+          <div id="tab-home" class="page-content tab tab-active">
+            
+            <div class="home-searchbar">
+              <i class="icon material-icons" style="color: #e2e8f0;">search</i>
+              <input type="text" id="input-busca" placeholder="Buscar filmes..." oninput="pesquisarDigitando()">
+            </div>
+
+            <div id="area-resultados" style="display: none;">
+              <div class="block-title">Resultados da Busca</div>
+              <div id="lista-resultados" class="block" style="padding: 0 15px;"></div>
+            </div>
+
+            <div id="area-home">
+              <div class="chip-container">
+                <div class="chip-categoria active" id="chip-inicio" onclick="mostrarInicio(this)">🌟 Início</div>
+                <div class="chip-categoria" onclick="mudarCategoria(28, 'Ação', this)">💥 Ação</div>
+                <div class="chip-categoria" onclick="mudarCategoria(35, 'Comédia', this)">😂 Comédia</div>
+                <div class="chip-categoria" onclick="mudarCategoria(27, 'Terror', this)">👻 Terror</div>
+                <div class="chip-categoria" onclick="mudarCategoria(878, 'Ficção', this)">👽 Ficção</div>
+              </div>
+
+              <div id="sessao-inicio">
+                <div class="block" style="margin-top: 5px;">
+                  <div style="background: linear-gradient(135deg, #00e054, #008f36); border-radius: 12px; padding: 15px; text-align: center; color: #000; box-shadow: 0 4px 15px rgba(0,224,84,0.2); cursor: pointer;" onclick="sortearFilme()">
+                    <i class="icon material-icons" style="font-size: 32px;">casino</i>
+                    <h3 style="margin: 5px 0 0 0; font-size: 16px; font-weight: 800;">Sem ideias do que assistir?</h3>
+                    <p style="margin: 0; font-size: 12px; font-weight: 600; color:#000 !important;">Sortear um filme surpresa</p>
+                  </div>
+                </div>
+
+                <div class="block-title block-title-medium">🔥 Recomendações em Alta</div>
+                <div class="block"><div id="lista-tendencias" class="scroller-horizontal">Carregando...</div></div>
+                
+                <div class="block-title block-title-medium">👀 Minha Lista (Recentes)</div>
+                <div class="block"><div id="lista-recentes" class="scroller-horizontal">Nenhum filme visto ainda.</div></div>
+              </div>
+
+              <div id="sessao-categoria" style="display: none;">
+                <div class="block-title block-title-medium" id="titulo-categoria">Categoria</div>
+                <div class="block"><div id="lista-categoria" class="grid-categorias">Carregando...</div></div>
+              </div>
+
+            </div>
+          </div>
+
+          <div id="tab-perfil" class="page-content tab">
+            <div class="block block-strong" style="text-align: center; background: transparent;">
+              <img src="" id="avatar-img" style="border: 3px solid #00e054; border-radius: 50%;">
+              <h2 id="nome-usuario" style="color: #ffffff; margin-bottom: 5px;">Carregando...</h2>
+              <button class="button button-small button-outline color-gray" onclick="editarPerfil()" style="width: 120px; margin: 0 auto; color: #e2e8f0;">Editar Perfil</button>
+            </div>
+            <div class="block-title" style="color: #ffffff;">Meu Diário completo</div>
+            <div class="list media-list inset"><ul id="lista-avaliacoes"></ul></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup" id="popup-detalhes">
+    <div class="view">
+      <div class="page" style="background: #0b0c10;">
+        <div class="navbar" style="background: transparent;">
+          <div class="navbar-inner">
+            <div class="left"><a class="link popup-close" style="color: #fff; background: rgba(0,0,0,0.5); border-radius: 50%; width: 40px; height: 40px; display:flex; justify-content:center; align-items:center; margin-left: 10px;"><i class="icon material-icons">arrow_back</i></a></div>
+          </div>
+        </div>
+        <div class="page-content" id="conteudo-detalhes"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="framework7/framework7-bundle.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "cwd": "/home/user/projetofilminho",
+  "type": [
+    "cordova"
+  ],
+  "name": "Filminho",
+  "pkg": "io.framework7.myapp",
+  "framework": "core",
+  "template": "single-view",
+  "bundler": false,
+  "cordova": {
+    "folder": "cordova",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "plugins": [
+      "cordova-plugin-statusbar",
+      "cordova-plugin-keyboard",
+      "cordova-plugin-splashscreen"
+    ]
+  },
+  "theming": {
+    "customColor": false,
+    "color": "#007aff",
+    "darkMode": false,
+    "iconFonts": true
+  },
+  "customBuild": false
+}

@@ -1,0 +1,18 @@
+{
+  "usuarios": [
+    {
+      "id": 1,
+      "nome": "Oliver Henrique"
+    }
+  ],
+  "avaliacoes": [
+    {
+      "id_usuario": 1,
+      "id_filme": 11,
+      "titulo_filme": "Guerra nas Estrelas",
+      "nota": 5,
+      "poster_path": "/dw7X9YPjjAfIxKHW04V64Bb9TB0.jpg",
+      "reassistido": false
+    }
+  ]
+}
