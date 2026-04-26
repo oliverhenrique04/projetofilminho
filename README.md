@@ -1,94 +1,159 @@
-# Filminho App
+# Filminho
 
-## Descrição
+Aplicativo mobile/web para descoberta e avaliação de filmes, desenvolvido com Apache Cordova e Framework7 como projeto integrador da disciplina de Desenvolvimento Mobile.
 
-Este é o repositório do Filminho App, uma aplicação web para descobrir, avaliar e organizar filmes. O projeto consiste em um frontend construído com Framework7 e um backend em Node.js com Express, que consome a API do The Movie Database (TMDb).
+## Integrantes
 
-## Funcionalidades Principais
+- Marcos de Oliveira - RA 082028
+- Oliver Henrique - RA 083885
 
-*   **Navegação e Descoberta:**
-    *   Visualizar filmes populares e em alta.
-    *   Navegar por filmes de diferentes categorias.
-    *   Buscar filmes específicos por título.
-    *   Sortear um filme aleatório para assistir.
-*   **Avaliação e Perfil:**
-    *   Avaliar filmes com nota, foto e localização.
-    *   Marcar um filme como "reassistido".
-    *   Visualizar um perfil de usuário com a lista de todos os filmes já avaliados.
-    *   Editar o nome do perfil de usuário.
-    *   Excluir avaliações feitas.
-*   **Detalhes do Filme:**
-    *   Ver informações detalhadas de um filme, incluindo sinopse, elenco, equipe e plataformas de streaming disponíveis.
+## Descrição do app
 
-## Tecnologias Utilizadas
+O Filminho permite explorar filmes populares, pesquisar títulos, visualizar detalhes completos e registrar avaliações pessoais. A aplicação combina:
 
-*   **Frontend:**
-    *   [Framework7](https://framework7.io/): Framework para desenvolvimento de aplicações web com visual nativo.
-    *   HTML5, CSS3, JavaScript (ES6+)
-*   **Backend:**
-    *   [Node.js](https://nodejs.org/): Ambiente de execução para JavaScript no servidor.
-    *   [Express.js](https://expressjs.com/): Framework para construção de APIs e aplicações web.
-    *   [Axios](https://axios-http.com/): Cliente HTTP para fazer requisições à API do TMDb.
-*   **Banco de Dados:**
-    *   **Arquivo JSON (`banco_filminho.json`):** Utilizado como um banco de dados simples para armazenar informações de usuários e suas avaliações.
-*   **API Externa:**
-    *   [The Movie Database (TMDb)](https://www.themoviedb.org/): Fonte para todos os dados de filmes, como títulos, sinopses, imagens e etc.
+- Frontend em Framework7 (interface responsiva com foco em mobile)
+- Backend Node.js + Express (API própria e integração com TMDb)
+- Persistência local de dados de perfil e avaliações
+
+## Tecnologias utilizadas
+
+- Apache Cordova
+- Framework7
+- HTML5
+- CSS3
+- JavaScript ES6+
+- Node.js
+- Express.js
+- Axios
+- TMDb API
+- localStorage (nome de usuário)
+- JSON local em `backend/banco_filminho.json` (perfil e avaliações)
+
+## Funcionalidades implementadas
+
+### Catálogo e descoberta
+
+- Listagem de filmes em tendência
+- Navegação por categorias (Ação, Comédia, Terror, Ficção)
+- Busca por título com atualização dinâmica
+- Sorteio de filme aleatório para recomendação rápida
+
+### Detalhes do filme
+
+- Página de detalhes com:
+  - título, ano e duração
+  - sinopse
+  - elenco principal
+  - provedores de streaming (quando disponíveis para BR)
+
+### Diário e avaliações
+
+- Criação de avaliação com nota de 0.5 a 5.0
+- Marcação de filme como reassistido
+- Inclusão opcional de foto via câmera
+- Captura opcional de localização ao salvar avaliação com foto
+- Listagem de avaliações no perfil
+- Remoção de avaliação do diário
+
+### Perfil
+
+- Exibição de avatar dinâmico e nome do usuário
+- Edição do nome do perfil
+- Carrossel de filmes recentes avaliados
+
+## Estrutura do projeto
+
+```text
+projetofilminho/
+|- backend/
+|  |- banco_filminho.json
+|  \- server.js
+|- build/
+|  \- build.mjs
+|- cordova/
+|  |- config.xml
+|  \- package.json
+|- www/
+|  |- index.html
+|  |- css/
+|  |- js/
+|  \- pages/
+|- package.json
+\- README.md
+```
 
 ## Pré-requisitos
 
-Para executar este projeto, você precisará ter o [Node.js](https://nodejs.org/) (que já inclui o gerenciador de pacotes `npm`) instalado em sua máquina.
+- Node.js 18+ e npm
+- Cordova CLI (global ou via `npx`)
 
-## Como Rodar o Projeto
+## Como executar
 
-1.  **Instale as dependências:**
-    Abra o terminal na raiz do projeto e execute o comando abaixo para instalar as bibliotecas necessárias para o backend (como Express, Cors e Axios).
-    ```bash
-    npm install
-    ```
+### 1) Execução recomendada (frontend + API no mesmo host)
 
-2.  **Chave da API (TMDb):**
-    O projeto requer uma chave de API do The Movie Database para funcionar. Atualmente, ela está definida diretamente no código, no arquivo `backend/server.js`.
-    
-    > **Atenção:** Para um ambiente de produção ou para garantir a segurança, é uma boa prática mover a chave para uma variável de ambiente (`.env`).
+Na raiz do projeto:
 
-3.  **Inicie o servidor backend:**
-    Após a instalação das dependências, inicie o servidor com o seguinte comando:
-    ```bash
-    node backend/server.js
-    ```
-    Você verá uma mensagem no console confirmando que o servidor está rodando na porta 3000.
-
-4.  **Acesse a aplicação:**
-    Com o servidor em execução, abra seu navegador e acesse a URL abaixo para usar o aplicativo:
-    [http://localhost:3000](http://localhost:3000)
-
-## Estrutura do Projeto
-
+```bash
+npm install
+node backend/server.js
 ```
-/
-├── backend/                # Contém o código do servidor Express.js
-│   ├── server.js           # Arquivo principal do backend (API, rotas)
-│   └── banco_filminho.json # Banco de dados local para usuários e avaliações
-├── www/                    # Contém os arquivos do frontend (Framework7)
-│   ├── index.html          # Página inicial da aplicação
-│   ├── css/                # Folhas de estilo
-│   ├── js/                 # Lógica do lado do cliente (app.js, routes.js)
-│   └── pages/              # Páginas HTML individuais do Framework7
-├── cordova/                # Configurações para empacotar como um app mobile com Cordova
-├── package.json            # Dependências e scripts do projeto Node.js
-└── README.md               # Este arquivo de documentação
+
+Abra no navegador:
+
+- http://localhost:3000
+
+### 2) Execução com Cordova no navegador (fluxo acadêmico)
+
+Na raiz do projeto:
+
+```bash
+npm install
+node build/build.mjs
 ```
+
+Depois, dentro da pasta `cordova`:
+
+```bash
+cd cordova
+npm install
+cordova platform add browser
+cordova run browser
+```
+
+Se o comando `cordova` não estiver disponível globalmente, use:
+
+```bash
+npx cordova platform add browser
+npx cordova run browser
+```
+
+## Scripts úteis (raiz)
+
+| Script | Comando | Descrição |
+| --- | --- | --- |
+| Desenvolvimento web | `npm run start` | Sobe backend e servidor estático em paralelo |
+| Backend | `npm run serve-backend` | Inicia API Express em `http://localhost:3000` |
+| Frontend estático | `npm run serve-frontend` | Serve `www/` em `http://localhost:8080` |
+| Build Cordova | `npm run build-cordova` | Copia assets e executa build Cordova |
+| Rodar Android | `npm run cordova-android` | Copia assets e executa app no Android |
+| Rodar iOS | `npm run cordova-ios` | Copia assets e executa app no iOS |
 
 ## Endpoints da API
 
-O backend (`server.js`) define as seguintes rotas para a aplicação:
+| Método | Endpoint | Descrição |
+| --- | --- | --- |
+| GET | `/api/filmes/tendencias` | Lista filmes populares |
+| GET | `/api/filmes/categoria/:id` | Lista filmes por gênero |
+| GET | `/api/filmes/sortear` | Retorna um filme aleatório |
+| GET | `/api/filme/:id` | Retorna detalhes completos do filme |
+| GET | `/api/filmes/buscar?q=...` | Busca filmes por termo |
+| POST | `/api/avaliar` | Salva nova avaliação |
+| DELETE | `/api/avaliar/:id_avaliacao` | Remove avaliação |
+| GET | `/api/perfil/:id_usuario` | Retorna perfil + avaliações |
+| PUT | `/api/perfil/:id_usuario` | Atualiza nome do usuário |
 
-*   `GET /api/filmes/tendencias`: Retorna uma lista dos filmes mais populares.
-*   `GET /api/filmes/categoria/:id`: Retorna filmes de uma categoria (gênero) específica.
-*   `GET /api/filmes/sortear`: Sorteia um filme aleatório da lista de populares.
-*   `GET /api/filme/:id`: Busca os detalhes completos de um filme específico.
-*   `GET /api/filmes/buscar?q=...`: Busca filmes com base em um termo de pesquisa.
-*   `POST /api/avaliar`: Cria e salva uma nova avaliação para um filme.
-*   `DELETE /api/avaliar/:id_avaliacao`: Remove uma avaliação existente.
-*   `GET /api/perfil/:id_usuario`: Retorna os dados do perfil e a lista de avaliações de um usuário.
-*   `PUT /api/perfil/:id_usuario`: Atualiza o nome de um usuário.
+## Observações técnicas
+
+- A chave da TMDb está atualmente definida em `backend/server.js`.
+- Para ambiente de produção, recomenda-se mover a chave para variável de ambiente.
+- O arquivo `backend/banco_filminho.json` funciona como base local para usuários e avaliações.
