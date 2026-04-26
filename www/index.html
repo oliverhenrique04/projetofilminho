@@ -14,58 +14,48 @@
       --f7-theme-color: #00e054;
       --f7-page-bg-color: #0b0c10;
       --f7-bars-bg-color: #121418;
-      /* Forçando variáveis do sistema a serem claras */
       --f7-text-color: #ffffff; 
       --f7-label-text-color: #ffffff;
       --f7-block-title-text-color: #00e054;
     }
     
-    /* RESET DE CONTRASTE TOTAL */
     body, .page, .page-content, p, span, div, .item-title, .item-after, .block {
-      color: #ffffff !important; /* Branco puro para tudo */
+      color: #ffffff !important;
     }
 
     .item-after {
-      color: #00e054 !important; /* Mantém as notas em verde */
+      color: #00e054 !important;
       font-weight: bold;
     }
 
     .toolbar-bottom { background-color: #121418 !important; border-top: 1px solid #1f2228; }
     
-    /* CATEGORIAS */
     .chip-container { display: flex; overflow-x: auto; gap: 10px; padding: 15px; background: transparent; scrollbar-width: none; }
     .chip-categoria { background: #1f2228; color: #ffffff !important; padding: 8px 18px; border-radius: 20px; font-size: 14px; white-space: nowrap; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
     .chip-categoria.active { background: #00e054; color: #000000 !important; border-color: #00e054; }
 
-    /* BUSCA */
     .home-searchbar { margin: 10px 15px; background: #1a1c23; border-radius: 8px; padding: 10px; display: flex; align-items: center; border: 1px solid rgba(255,255,255,0.2); }
     .home-searchbar input { background: transparent; border: none; color: #ffffff !important; width: 100%; font-size: 16px; outline: none; margin-left: 10px; }
     .home-searchbar input::placeholder { color: #888 !important; }
 
-    /* CARDS DE FILMES */
-    .poster-title { 
-      font-size: 13px; 
-      color: #ffffff !important; 
-      margin-top: 8px; 
-      font-weight: 600; 
-      text-shadow: 1px 1px 2px #000; /* Ajuda a ler sobre qualquer fundo */
-    }
+    .poster-title { font-size: 13px; color: #ffffff !important; margin-top: 8px; font-weight: 600; text-shadow: 1px 1px 2px #000; }
     .scroller-horizontal { display: flex; overflow-x: auto; gap: 12px; padding-bottom: 15px; scrollbar-width: none; }
     .poster-card { min-width: 110px; max-width: 110px; cursor: pointer; }
     .poster-card img { width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.05); }
 
-    /* GRADE DE CATEGORIAS */
     .grid-categorias { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 0 10px; }
     .grid-categorias .poster-card { min-width: unset; max-width: 100%; }
 
-    /* DETALHES */
     .detalhes-header { width: 100%; height: 250px; background-size: cover; background-position: center; position: relative; }
     .detalhes-header::after { content: ''; position: absolute; bottom: 0; width: 100%; height: 100%; background: linear-gradient(to top, #0b0c10 15%, transparent); }
+    
     .ator-card { min-width: 85px; text-align: center; }
     .ator-card img { width: 65px; height: 65px; border-radius: 50%; object-fit: cover; border: 2px solid #1f2228; }
     .ator-card div { color: #ffffff !important; font-size: 11px; margin-top: 4px; }
     
-    /* TÍTULOS DE SESSÃO */
+    .provider-card { min-width: 60px; text-align: center; }
+    .provider-card img { width: 50px; height: 50px; border-radius: 10px; object-fit: cover; border: 2px solid #1f2228; }
+
     .block-title { color: #00e054 !important; font-weight: 800 !important; font-size: 18px !important; text-transform: uppercase; letter-spacing: 1px; }
 
     .dialog { background-color: #1a1c23 !important; border-radius: 14px; border: 1px solid rgba(255,255,255,0.1); }
@@ -74,12 +64,40 @@
     .dialog-text { color: #c5c6c7 !important; }
     .dialog-button { color: #00e054 !important; background: rgba(0, 224, 84, 0.05) !important; font-weight: bold; }
     
-    .dialog-input-wrap input { 
-      background-color: #0b0c10 !important; 
-      color: #ffffff !important; 
-      border: 1px solid #333 !important; 
-      border-radius: 6px !important; 
-      padding: 5px 10px !important;
+    .dialog-input-wrap input { background-color: #0b0c10 !important; color: #ffffff !important; border: 1px solid #333 !important; border-radius: 6px !important; padding: 5px 10px !important; }
+
+    #camera-preview-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 20000; }
+    #camera-video { width: 100%; height: 100%; object-fit: cover; }
+    #capture-button { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 70px; height: 70px; border-radius: 50%; background: #fff; border: 5px solid #00e054; cursor: pointer; }
+    #cancel-camera-button { position: absolute; top: 30px; right: 20px; color: #fff; font-size: 18px; cursor: pointer; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; }
+    
+    .rating-popup { position: fixed; bottom: 0; left: 0; width: 100%; background-color: #1a1c23; border-top: 1px solid #1f2228; transform: translateY(100%); transition: transform 0.3s ease-out; z-index: 15000; padding: 20px; box-sizing: border-box; }
+    .rating-popup.visible { transform: translateY(0); }
+    .stars-container { display: flex; justify-content: center; align-items: center; padding: 10px 0; }
+    .star { font-size: 36px; color: #444; cursor: pointer; transition: color 0.2s; position: relative; }
+    .star.filled, .star.half-filled::before { color: #00e054; }
+    .star.half-filled::before { content: '★'; position: absolute; left: 0; width: 50%; overflow: hidden; }
+
+    .rating-options { padding: 10px 0; }
+    .rating-options .item-content { background: none; padding-left: 0; }
+    .rating-options .item-inner { padding-right: 0; }
+
+    /* Estilos para telas maiores (web) */
+    @media (min-width: 768px) {
+      .grid-categorias { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px; padding: 0 20px; }
+      .grid-categorias .poster-card { min-width: unset; }
+      .grid-categorias .poster-card img { aspect-ratio: 2/3; object-fit: cover; }
+      .chip-container { justify-content: center; }
+      .page-content { max-width: 1200px; margin: 0 auto; }
+    }
+    #add-photo-button.button-fill {
+      color: #000 !important;
+      background-color: #00e054 !important;
+      border-color: #00e054 !important;
+    }
+    .photo-popup .popup-close {
+      color: white !important;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -150,13 +168,18 @@
           </div>
 
           <div id="tab-perfil" class="page-content tab">
-            <div class="block block-strong" style="text-align: center; background: transparent;">
-              <img src="" id="avatar-img" style="border: 3px solid #00e054; border-radius: 50%;">
-              <h2 id="nome-usuario" style="color: #ffffff; margin-bottom: 5px;">Carregando...</h2>
-              <button class="button button-small button-outline color-gray" onclick="editarPerfil()" style="width: 120px; margin: 0 auto; color: #e2e8f0;">Editar Perfil</button>
+            <div class="block" style="text-align: center; margin-top: 30px; margin-bottom: 30px;">
+                <img id="avatar-img" style="border-radius: 50%; width: 90px; height: 90px; border: 4px solid #00e054;">
+                <h2 id="nome-usuario" style="margin-top: 10px; margin-bottom: 5px; color:#ffffff;">Carregando...</h2>
+                <a href="#" class="link" onclick="editarPerfil()" style="color: #00e054;">Editar Perfil</a>
             </div>
-            <div class="block-title" style="color: #ffffff;">Meu Diário completo</div>
-            <div class="list media-list inset"><ul id="lista-avaliacoes"></ul></div>
+
+            <div class="block-title">Meu Diário de Filmes</div>
+            <div class="list media-list">
+                <ul id="lista-avaliacoes">
+                </ul>
+            </div>
+
           </div>
 
         </div>
@@ -174,6 +197,54 @@
         </div>
         <div class="page-content" id="conteudo-detalhes"></div>
       </div>
+    </div>
+  </div>
+
+  <div id="camera-preview-container">
+    <video id="camera-video" autoplay playsinline></video>
+    <div id="capture-button"></div>
+    <div id="cancel-camera-button">Cancelar</div>
+  </div>
+  
+  <div id="rating-popup" class="rating-popup">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h3 style="margin:0; font-size: 18px; color: #fff;">Sua Avaliação</h3>
+        <a href="#" class="link" onclick="fecharPopupAvaliacao()" style="color: #00e054;">Cancelar</a>
+    </div>
+    
+    <p style="text-align: center; font-size: 16px; margin: 5px 0; min-height: 24px;"><b id="rating-value">Toque nas estrelas para avaliar</b></p>
+    <div id="stars-container" class="stars-container">
+        <span class="star" data-value="1">☆</span>
+        <span class="star" data-value="2">☆</span>
+        <span class="star" data-value="3">☆</span>
+        <span class="star" data-value="4">☆</span>
+        <span class="star" data-value="5">☆</span>
+    </div>
+
+    <div class="list no-hairlines rating-options">
+      <ul>
+        <li>
+          <div class="item-content">
+            <div class="item-inner">
+              <div class="item-title">Já assisti esse filme</div>
+              <div class="item-after">
+                <label class="toggle">
+                  <input type="checkbox" id="rating-rewatch-toggle" />
+                  <span class="toggle-icon"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <div class="block" style="margin-top:15px;">
+      <button id="add-photo-button" class="button button-outline" style="color:#00e054; border-color:#00e054;">
+        <i class="icon material-icons">photo_camera</i>
+        Adicionar Foto
+      </button>
+      <button id="save-rating-button" class="button button-fill button-large" style="background-color: #00e054; color: #000; font-weight: 800; margin-top: 15px; width:100%;">Salvar Avaliação</button>
     </div>
   </div>
 

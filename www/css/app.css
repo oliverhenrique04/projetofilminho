@@ -4,3 +4,18 @@
 }
 
 /* Your app custom styles here */
+
+/* Make text on green buttons more visible */
+.button.color-green, .button-fill.color-green {
+  color: #000; /* Black text for better contrast on green background */
+}
+
+/* Make the photo browser close button more visible */
+.photo-browser-close {
+  color: white !important; /* Force the color to be white */
+  opacity: 1 !important; /* Ensure it's fully opaque */
+}
+
+.photo-browser-toolbar .toolbar-inner a {
+    color: white; /* Make toolbar links white */
+}

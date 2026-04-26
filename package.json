@@ -6,8 +6,9 @@
   "repository": "",
   "license": "UNLICENSED",
   "scripts": {
-    "start": "npm run serve",
-    "serve": "http-server ./www/ -o -c 1 -a localhost -p 8080",
+    "start": "concurrently \"npm:serve-backend\" \"npm:serve-frontend\"",
+    "serve-frontend": "http-server ./www/ -o -c 1 -a localhost -p 8080",
+    "serve-backend": "node backend/server.js",
     "build-cordova": "node ./build/build.mjs && cd cordova && cordova build",
     "build-cordova-ios": "node ./build/build.mjs && cd cordova && cordova build ios",
     "cordova-ios": "node ./build/build.mjs && cd cordova && cordova run ios",
@@ -23,6 +24,8 @@
   ],
   "dependencies": {
     "axios": "^1.13.6",
+    "cordova-plugin-camera": "^8.0.0",
+    "cordova-plugin-geolocation": "^5.0.0",
     "cors": "^2.8.6",
     "dom7": "^4.0.6",
     "express": "^5.2.1",
@@ -33,6 +36,8 @@
     "swiper": "^12.1.2"
   },
   "devDependencies": {
+    "concurrently": "^8.2.2",
+    "cordova": "^12.0.0",
     "cpy": "^13.2.1",
     "cpy-cli": "^7.0.0",
     "http-server": "^14.1.1",
