@@ -15,6 +15,10 @@ O Filminho permite explorar filmes populares, pesquisar títulos, visualizar det
 - Backend Node.js + Express (API própria e integração com TMDb)
 - Persistência local de dados de perfil e avaliações
 
+## Artigo científico
+
+- Consulte o arquivo [`ARTIGO_CIENTIFICO.md`](./ARTIGO_CIENTIFICO.md), contendo introdução, metodologia, resultados, conclusão e citações.
+
 ## Tecnologias utilizadas
 
 - Apache Cordova
