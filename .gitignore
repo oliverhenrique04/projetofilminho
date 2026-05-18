@@ -39,6 +39,9 @@ cordova/platforms/
 cordova/plugins/
 cordova/www/
 
+# Worktrees
+.worktrees/
+
 
 
 
