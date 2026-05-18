@@ -99,9 +99,106 @@
       color: white !important;
       font-weight: bold;
     }
+
+    /* Auth screen */
+    .auth-screen { position: fixed; inset: 0; display: none; background: #0b0c10; z-index: 30000; }
+    .auth-screen.active { display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .auth-card { width: 100%; max-width: 380px; background: #1a1c23; border-radius: 16px; padding: 24px; border: 2px solid #00e054; box-shadow: 0 0 30px rgba(0, 224, 84, 0.15); }
+    .auth-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .auth-tab { flex: 1; padding: 12px; border: 2px solid #1f2228; background: #121418; color: #aaa; cursor: pointer; font-size: 15px; font-weight: 700; border-radius: 8px; transition: all 0.2s; }
+    .auth-tab:hover { border-color: #00e054; color: #00e054; }
+    .auth-tab.active { background: #00e054; color: #000; border-color: #00e054; }
+    .auth-panel { display: none; }
+    .auth-panel.active { display: block; }
+    .auth-card input, .auth-card select { width: 100%; margin-bottom: 12px; padding: 12px 14px; background: #0b0c10 !important; color: #ffffff !important; border: 2px solid #2a2d35 !important; border-radius: 8px; box-sizing: border-box; font-size: 15px; transition: border-color 0.2s; }
+    .auth-card input:focus, .auth-card select:focus { border-color: #00e054 !important; outline: none; box-shadow: 0 0 0 3px rgba(0, 224, 84, 0.1); }
+    .auth-card input::placeholder { color: #555 !important; }
+    .auth-card select { color: #ffffff !important; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 35px; }
+    .auth-card select option { background: #1a1c23; color: #fff; }
+    .auth-card button { width: 100%; padding: 14px; background: #00e054; color: #000; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 16px; transition: all 0.2s; margin-top: 5px; }
+    .auth-card button:hover { background: #00c94a; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 224, 84, 0.3); }
+    .auth-card button:active { transform: translateY(0); }
+    .auth-consent { display: flex; gap: 10px; color: #c5c6c7; font-size: 12px; margin-bottom: 12px; align-items: flex-start; }
+    .auth-consent input[type="checkbox"] { width: 18px; height: 18px; accent-color: #00e054; flex-shrink: 0; margin-top: 1px; }
+
+    /* Friends section */
+    .friends-search { display: grid; gap: 10px; }
+    .friends-suggestions { background: #1a1c23; border: 1px solid #1f2228; border-radius: 8px; display: none; max-height: 200px; overflow-y: auto; }
+    .friends-suggestions.active { display: block; }
+    .friends-suggestions .suggestion { padding: 8px 10px; cursor: pointer; color: #fff; border-bottom: 1px solid #1f2228; }
+    .friends-suggestions .suggestion:hover { background: #242730; }
+    .friend-request-item { display: flex; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #1f2228; }
+    .friend-request-item button { padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
+    .btn-accept { background: #00e054; color: #000; }
+    .btn-decline { background: #ff5555; color: #fff; }
+    .friend-item { padding: 8px 0; border-bottom: 1px solid #1f2228; cursor: pointer; color: #fff; }
+    .friend-item:hover { color: #00e054; }
+    .btn-logout { background: #ff5555; color: #fff; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; margin-top: 10px; font-size: 14px; transition: all 0.2s; }
+    .btn-logout:hover { background: #ff3333; transform: translateY(-1px); }
+    .btn-delete-account { background: transparent; color: #ff5555; border: 2px solid #ff5555; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 700; margin-top: 8px; font-size: 14px; transition: all 0.2s; }
+    .btn-delete-account:hover { background: rgba(255, 85, 85, 0.1); transform: translateY(-1px); }
+
+    /* Responsivo para telas pequenas (mobile) */
+    @media (max-width: 480px) {
+      .auth-card { padding: 18px; border-radius: 12px; }
+      .auth-card input, .auth-card select { padding: 10px 12px; font-size: 14px; margin-bottom: 10px; }
+      .auth-card button { padding: 12px; font-size: 15px; }
+      .auth-tab { padding: 10px; font-size: 14px; }
+      .auth-consent { font-size: 11px; }
+    }
+
+    /* Responsivo para telas muito pequenas */
+    @media (max-width: 360px) {
+      .auth-screen { padding: 10px; }
+      .auth-card { padding: 14px; }
+      .auth-card input, .auth-card select { padding: 9px 10px; font-size: 13px; }
+      .auth-card button { padding: 11px; font-size: 14px; }
+    }
+
+    /* Responsivo para tablets */
+    @media (min-width: 481px) and (max-width: 767px) {
+      .auth-card { max-width: 420px; }
+    }
   </style>
 </head>
 <body>
+  <div id="auth-screen" class="auth-screen">
+    <div class="auth-card">
+      <div style="text-align:center; margin-bottom:15px;">
+        <span style="font-size:32px;">🍿</span>
+        <h2 style="color:#00e054; margin:5px 0 0 0; font-weight:800;">Filminho</h2>
+      </div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Login</button>
+        <button class="auth-tab" data-tab="register">Cadastro</button>
+      </div>
+
+      <div id="auth-login" class="auth-panel active">
+        <form id="auth-login-form">
+          <input type="email" id="login-email" placeholder="Email" required>
+          <input type="password" id="login-senha" placeholder="Senha" required>
+          <button type="submit">Entrar</button>
+        </form>
+      </div>
+
+      <div id="auth-register" class="auth-panel">
+        <form id="auth-register-form">
+          <input type="text" id="cadastro-nome" placeholder="Nome de usuário" required>
+          <input type="email" id="cadastro-email" placeholder="Email" required>
+          <input type="password" id="cadastro-senha" placeholder="Senha (mín. 6 caracteres)" required>
+          <input type="text" id="cadastro-cep" placeholder="CEP" maxlength="9" required>
+          <input type="text" id="cadastro-cidade" placeholder="Cidade" readonly>
+          <select id="cadastro-uf"><option value="">UF</option></select>
+          <label class="auth-consent">
+            <input type="checkbox" id="cadastro-lgpd" required>
+            Concordo com a política de privacidade (LGPD)
+          </label>
+          <button type="submit">Criar conta</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div id="app" class="theme-dark">
     <div class="view view-main">
       <div class="page" data-name="home">
@@ -168,16 +265,57 @@
           </div>
 
           <div id="tab-perfil" class="page-content tab">
-            <div class="block" style="text-align: center; margin-top: 30px; margin-bottom: 30px;">
-                <img id="avatar-img" style="border-radius: 50%; width: 90px; height: 90px; border: 4px solid #00e054;">
-                <h2 id="nome-usuario" style="margin-top: 10px; margin-bottom: 5px; color:#ffffff;">Carregando...</h2>
-                <a href="#" class="link" onclick="editarPerfil()" style="color: #00e054;">Editar Perfil</a>
+            <!-- Perfil Header -->
+            <div style="background: linear-gradient(135deg, #1a1c23 0%, #121418 100%); border-radius: 16px; padding: 24px; margin: 15px; text-align: center; border: 2px solid #1f2228;">
+                <img id="avatar-img" style="border-radius: 50%; width: 100px; height: 100px; border: 4px solid #00e054; box-shadow: 0 0 20px rgba(0, 224, 84, 0.2);">
+                <h2 id="nome-usuario" style="margin-top: 12px; margin-bottom: 4px; color:#ffffff; font-size: 22px; font-weight: 800;">Carregando...</h2>
+                <p id="cidade-usuario" style="margin: 0 0 12px 0; color: #00e054; font-size: 14px; font-weight: 600;"></p>
+                <a href="#" class="link" onclick="editarPerfil()" style="color: #00e054; font-weight: 700; font-size: 14px;">✏️ Editar Perfil</a>
+                
+                <!-- Ações da conta -->
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #1f2228;">
+                    <button class="btn-logout" onclick="logout()" style="width: 100%; margin-bottom: 10px;">🚪 Sair da conta</button>
+                    <button class="btn-delete-account" onclick="excluirConta()" style="width: 100%;">🗑️ Excluir conta e dados</button>
+                    <p style="font-size: 11px; color: #666; margin-top: 8px;">A exclusão é permanente e não pode ser desfeita</p>
+                </div>
             </div>
 
-            <div class="block-title">Meu Diário de Filmes</div>
-            <div class="list media-list">
-                <ul id="lista-avaliacoes">
-                </ul>
+            <!-- Diário de Filmes -->
+            <div style="margin: 0 15px;">
+                <div class="block-title" style="margin-bottom: 12px;">📽️ Meu Diário de Filmes</div>
+                <div class="list media-list" style="background: #1a1c23; border-radius: 12px; border: 1px solid #1f2228;">
+                    <ul id="lista-avaliacoes"></ul>
+                </div>
+            </div>
+
+            <!-- Seção de Amigos -->
+            <div id="friends-section" class="block" style="margin: 20px 15px;">
+              <div class="block-title" style="margin-bottom: 15px;">👥 Amigos</div>
+              
+              <!-- Busca de amigos -->
+              <div class="friends-search">
+                <input type="text" id="friend-search-input" placeholder="🔍 Buscar amigo por nome..." style="background: #1a1c23; border: 2px solid #2a2d35; color: #fff !important; padding: 12px; border-radius: 8px;">
+                <div id="friend-suggestions" class="friends-suggestions"></div>
+                <button id="friend-request-button" class="button button-fill" style="background-color: #00e054; color: #000; font-weight: 800; padding: 12px; border-radius: 8px; border: none; font-size: 14px;">➕ Enviar solicitação</button>
+              </div>
+
+              <!-- Solicitações recebidas -->
+              <div style="margin-top: 20px;">
+                <div class="block-title" style="margin-bottom: 10px;">📥 Solicitações recebidas</div>
+                <div id="friend-requests-received" style="background: #1a1c23; border-radius: 8px; padding: 10px; border: 1px solid #1f2228;"></div>
+              </div>
+
+              <!-- Solicitações enviadas -->
+              <div style="margin-top: 15px;">
+                <div class="block-title" style="margin-bottom: 10px;">📤 Solicitações enviadas</div>
+                <div id="friend-requests-sent" style="background: #1a1c23; border-radius: 8px; padding: 10px; border: 1px solid #1f2228;"></div>
+              </div>
+
+              <!-- Meus amigos -->
+              <div style="margin-top: 15px;">
+                <div class="block-title" style="margin-bottom: 10px;">✅ Meus amigos</div>
+                <div id="friends-list" style="background: #1a1c23; border-radius: 8px; padding: 10px; border: 1px solid #1f2228;"></div>
+              </div>
             </div>
 
           </div>
@@ -196,6 +334,23 @@
           </div>
         </div>
         <div class="page-content" id="conteudo-detalhes"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overlay de Edição de Perfil -->
+  <div id="edit-perfil-overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:40000; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:#1a1c23; border-radius:16px; padding:24px; width:100%; max-width:380px; border:2px solid #00e054; box-shadow:0 0 30px rgba(0,224,84,0.15);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h3 style="color:#00e054; margin:0; font-weight:800;">Editar Perfil</h3>
+        <a href="#" id="btn-fechar-edit-perfil" style="color:#fff; font-size:24px; text-decoration:none; line-height:1;">&times;</a>
+      </div>
+      <input type="text" id="edit-nome" placeholder="Nome de usuário" style="width:100%; padding:12px; background:#0b0c10; color:#fff; border:2px solid #2a2d35; border-radius:8px; margin-bottom:12px; box-sizing:border-box; font-size:15px;">
+      <input type="text" id="edit-cidade" placeholder="Cidade" style="width:100%; padding:12px; background:#0b0c10; color:#fff; border:2px solid #2a2d35; border-radius:8px; margin-bottom:12px; box-sizing:border-box; font-size:15px;">
+      <select id="edit-uf" style="width:100%; padding:12px; background:#1a1c23; color:#fff; border:2px solid #2a2d35; border-radius:8px; box-sizing:border-box; font-size:15px; appearance:none; -webkit-appearance:none; background-repeat:no-repeat; background-position:right 12px center; padding-right:35px;" data-uf-placeholder="UF"></select>
+      <div style="display:flex; gap:10px; margin-top:15px;">
+        <button id="btn-salvar-edit-perfil" style="flex:1; padding:14px; background:#00e054; color:#000; border:none; border-radius:8px; font-weight:800; cursor:pointer; font-size:16px;">Salvar</button>
+        <button id="btn-cancelar-edit-perfil" style="flex:1; padding:14px; background:#1f2228; color:#fff; border:2px solid #2a2d35; border-radius:8px; font-weight:800; cursor:pointer; font-size:16px;">Cancelar</button>
       </div>
     </div>
   </div>

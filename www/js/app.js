@@ -1,8 +1,9 @@
 var app = new Framework7({ el: '#app', theme: 'auto' });
 
-var MEU_ID_USUARIO = 1;
+var MEU_ID_USUARIO = Number(localStorage.getItem('filminho_user_id') || 0);
 var API_URL = '/api';
 var filmeAbertoAgora = null;
+var amigoSelecionadoId = null;
 
 // Objeto para armazenar o estado da avaliação atual
 let avaliacaoAtual = {
@@ -16,8 +17,323 @@ if (!localStorage.getItem('nome_usuario_filminho')) {
   localStorage.setItem('nome_usuario_filminho', 'Oliver Henrique');
 }
 
+// ====== FUNÇÕES DE AUTENTICAÇÃO ====
+function mostrarAuth() {
+  document.getElementById('auth-screen').classList.add('active');
+  document.getElementById('app').style.display = 'none';
+}
+
+function mostrarApp() {
+  document.getElementById('auth-screen').classList.remove('active');
+  document.getElementById('app').style.display = 'block';
+}
+
+function bindAuthTabs() {
+  document.querySelectorAll('.auth-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.auth-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.auth-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('auth-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+}
+
+async function carregarUfs() {
+  try {
+    const res = await fetch(API_URL + '/ibge/ufs');
+    const ufs = await res.json();
+    const select = document.getElementById('cadastro-uf');
+    select.innerHTML = ufs.map(u => '<option value="' + u.sigla + '">' + u.sigla + '</option>').join('');
+  } catch (e) {
+    console.error('Erro ao carregar UFs:', e);
+  }
+}
+
+async function buscarCep(cep) {
+  const res = await fetch(API_URL + '/cep/' + cep);
+  return res.json();
+}
+
+async function handleLogin(ev) {
+  ev.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  const senha = document.getElementById('login-senha').value;
+  app.dialog.preloader('Entrando...');
+  try {
+    const res = await fetch(API_URL + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, senha })
+    });
+    app.dialog.close();
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return app.dialog.alert(data.erro || 'Credenciais inválidas.');
+    }
+    const data = await res.json();
+    localStorage.setItem('filminho_user_id', data.id);
+    localStorage.setItem('filminho_user_nome', data.nome);
+    localStorage.setItem('filminho_user_cidade', data.cidade || '');
+    localStorage.setItem('filminho_user_uf', data.uf || '');
+    MEU_ID_USUARIO = data.id;
+    mostrarApp();
+    carregarPerfil();
+    carregarFilmesHome('tendencias', 'lista-tendencias');
+    carregarSolicitacoes();
+    carregarAmigos();
+  } catch (e) {
+    app.dialog.close();
+    app.dialog.alert('Erro ao conectar com o servidor.');
+  }
+}
+
+async function handleCadastro(ev) {
+  ev.preventDefault();
+  const nome = document.getElementById('cadastro-nome').value.trim();
+  const email = document.getElementById('cadastro-email').value.trim();
+  const senha = document.getElementById('cadastro-senha').value;
+  const cep = document.getElementById('cadastro-cep').value.trim();
+  const consent = document.getElementById('cadastro-lgpd').checked;
+
+  if (!nome || !email || !senha || !cep) return app.dialog.alert('Preencha todos os campos.');
+  if (senha.length < 6) return app.dialog.alert('Senha deve ter no mínimo 6 caracteres.');
+  if (!consent) return app.dialog.alert('Você deve aceitar a política de privacidade.');
+
+  app.dialog.preloader('Criando conta...');
+  try {
+    const res = await fetch(API_URL + '/auth/registro', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, email, senha, cep, consentimento_lgpd: consent })
+    });
+    app.dialog.close();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return app.dialog.alert(data.erro || 'Falha no cadastro.');
+
+    localStorage.setItem('filminho_user_id', data.id);
+    localStorage.setItem('filminho_user_nome', data.nome);
+    localStorage.setItem('filminho_user_cidade', data.cidade || '');
+    localStorage.setItem('filminho_user_uf', data.uf || '');
+    MEU_ID_USUARIO = data.id;
+    mostrarApp();
+    carregarPerfil();
+    carregarFilmesHome('tendencias', 'lista-tendencias');
+    carregarSolicitacoes();
+    carregarAmigos();
+  } catch (e) {
+    app.dialog.close();
+    app.dialog.alert('Erro ao conectar com o servidor.');
+  }
+}
+
+function logout() {
+  localStorage.removeItem('filminho_user_id');
+  localStorage.removeItem('filminho_user_nome');
+  localStorage.removeItem('filminho_user_cidade');
+  localStorage.removeItem('filminho_user_uf');
+  MEU_ID_USUARIO = 0;
+  mostrarAuth();
+}
+
+async function excluirConta() {
+  app.dialog.confirm('Tem certeza? Todos os seus dados serão removidos permanentemente.', 'Excluir conta', async () => {
+    app.dialog.preloader('Excluindo...');
+    try {
+      const res = await fetch(API_URL + '/usuarios/' + MEU_ID_USUARIO, { method: 'DELETE' });
+      app.dialog.close();
+      if (res.ok) {
+        logout();
+        app.dialog.alert('Conta excluída com sucesso.');
+      } else {
+        app.dialog.alert('Erro ao excluir conta.');
+      }
+    } catch (e) {
+      app.dialog.close();
+      app.dialog.alert('Erro ao conectar com o servidor.');
+    }
+  });
+}
+
+function initAuth() {
+  bindAuthTabs();
+  carregarUfs();
+  document.getElementById('auth-login-form').addEventListener('submit', handleLogin);
+  document.getElementById('auth-register-form').addEventListener('submit', handleCadastro);
+
+  // CEP -> ViaCEP
+  document.getElementById('cadastro-cep').addEventListener('blur', async (e) => {
+    const cep = e.target.value.replace(/\D/g, '');
+    if (cep.length === 8) {
+      try {
+        const data = await buscarCep(cep);
+        if (!data.erro) {
+          document.getElementById('cadastro-cidade').value = data.localidade || '';
+          document.getElementById('cadastro-uf').value = data.uf || '';
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar CEP:', err);
+      }
+    }
+  });
+
+  // CEP mask
+  document.getElementById('cadastro-cep').addEventListener('input', (e) => {
+    let v = e.target.value.replace(/\D/g, '');
+    if (v.length > 5) v = v.slice(0, 5) + '-' + v.slice(5);
+    e.target.value = v;
+  });
+
+  if (!MEU_ID_USUARIO) {
+    mostrarAuth();
+  } else {
+    mostrarApp();
+    carregarPerfil();
+    carregarFilmesHome('tendencias', 'lista-tendencias');
+    carregarSolicitacoes();
+    carregarAmigos();
+  }
+}
+
+// ====== FIM FUNÇÕES DE AUTENTICAÇÃO ====
+
+// ====== FUNÇÕES DE AMIGOS ====
+async function carregarSolicitacoes() {
+  try {
+    const res = await fetch(API_URL + '/amigos/pendentes?usuario_id=' + MEU_ID_USUARIO);
+    const data = await res.json();
+    document.getElementById('friend-requests-received').innerHTML = data.recebidas.map(s =>
+      '<div class="friend-request-item">' +
+        '<span>Usuário #' + s.de_id + '</span>' +
+        '<button class="btn-accept" onclick="aceitarSolicitacao(' + s.id + ')">Aceitar</button>' +
+        '<button class="btn-decline" onclick="recusarSolicitacao(' + s.id + ')">Recusar</button>' +
+      '</div>'
+    ).join('') || '<p style="color:#888;">Nenhuma.</p>';
+    document.getElementById('friend-requests-sent').innerHTML = data.enviadas.map(s =>
+      '<div class="friend-request-item"><span>Enviado para usuário #' + s.para_id + '</span></div>'
+    ).join('') || '<p style="color:#888;">Nenhuma.</p>';
+  } catch (e) {
+    console.error('Erro ao carregar solicitações:', e);
+  }
+}
+
+async function aceitarSolicitacao(id) {
+  try {
+    await fetch(API_URL + '/amigos/aceitar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ solicitacao_id: id, usuario_id: MEU_ID_USUARIO })
+    });
+    carregarSolicitacoes();
+    carregarAmigos();
+    app.toast.create({ text: 'Solicitação aceita!', closeTimeout: 2000, position: 'center' }).open();
+  } catch (e) {
+    app.dialog.alert('Erro ao aceitar solicitação.');
+  }
+}
+
+async function recusarSolicitacao(id) {
+  try {
+    await fetch(API_URL + '/amigos/recusar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ solicitacao_id: id, usuario_id: MEU_ID_USUARIO })
+    });
+    carregarSolicitacoes();
+    app.toast.create({ text: 'Solicitação recusada.', closeTimeout: 2000, position: 'center' }).open();
+  } catch (e) {
+    app.dialog.alert('Erro ao recusar solicitação.');
+  }
+}
+
+async function carregarAmigos() {
+  try {
+    const res = await fetch(API_URL + '/amigos?usuario_id=' + MEU_ID_USUARIO);
+    const amigos = await res.json();
+    document.getElementById('friends-list').innerHTML = amigos.map(a =>
+      '<div class="friend-item" onclick="abrirAvaliacaoAmigo(' + a.id + ', \'' + a.nome.replace(/'/g, "\\'") + '\')">' +
+        '<i class="icon material-icons" style="color:#00e054; font-size:18px; vertical-align:middle;">person</i> ' + a.nome +
+      '</div>'
+    ).join('') || '<p style="color:#888;">Nenhum amigo ainda.</p>';
+  } catch (e) {
+    console.error('Erro ao carregar amigos:', e);
+  }
+}
+
+async function abrirAvaliacaoAmigo(amigoId, nome) {
+  try {
+    const res = await fetch(API_URL + '/amigos/' + amigoId + '/avaliacoes?usuario_id=' + MEU_ID_USUARIO);
+    const avals = await res.json();
+    const html = avals.map(a =>
+      '<div style="display:flex; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid #1f2228;">' +
+        (a.poster_path ? '<img src="https://image.tmdb.org/t/p/w50' + a.poster_path + '" style="width:40px; border-radius:4px;">' : '') +
+        '<div><div style="color:#fff; font-weight:600;">' + a.titulo_filme + '</div>' +
+        '<div style="color:#00e054;">' + a.nota + ' ⭐</div></div>' +
+        (a.foto ? '<i class="icon material-icons" style="color:#00e054; cursor:pointer;" onclick="visualizarFoto(event, \'' + a.foto + '\')">photo_camera</i>' : '') +
+        (a.localizacao ? '<i class="icon material-icons" style="color:#00e054; cursor:pointer;" onclick="mostrarNoMapa(event, \'' + a.localizacao.lat + '\', \'' + a.localizacao.lon + '\')">location_on</i>' : '') +
+      '</div>'
+    ).join('') || '<p style="color:#888;">Sem avaliações.</p>';
+    app.dialog.create({
+      title: 'Filmes de ' + nome,
+      content: html,
+      buttons: [{ text: 'Fechar', color: '#00e054' }]
+    }).open();
+  } catch (e) {
+    app.dialog.alert('Erro ao carregar avaliações do amigo.');
+  }
+}
+
+// Autocomplete de amigos
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('friend-search-input');
+  if (!input) return;
+
+  input.addEventListener('input', async (e) => {
+    const termo = e.target.value.trim();
+    const box = document.getElementById('friend-suggestions');
+    if (termo.length < 2) { box.classList.remove('active'); box.innerHTML = ''; return; }
+    try {
+      const res = await fetch(API_URL + '/usuarios/buscar?nome=' + encodeURIComponent(termo) + '&usuario_id=' + MEU_ID_USUARIO);
+      const lista = await res.json();
+      box.innerHTML = lista.map(u =>
+        '<div class="suggestion" data-id="' + u.id + '">' + u.nome + '</div>'
+      ).join('');
+      box.classList.add('active');
+      box.querySelectorAll('.suggestion').forEach(el => el.addEventListener('click', () => {
+        amigoSelecionadoId = Number(el.dataset.id);
+        input.value = el.textContent;
+        box.classList.remove('active');
+      }));
+    } catch (err) {
+      console.error('Erro na busca de amigos:', err);
+    }
+  });
+
+  document.getElementById('friend-request-button').addEventListener('click', async () => {
+    if (!amigoSelecionadoId) return app.dialog.alert('Selecione um usuário.');
+    try {
+      const res = await fetch(API_URL + '/amigos/solicitar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ de_id: MEU_ID_USUARIO, para_id: amigoSelecionadoId })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return app.dialog.alert(data.erro || 'Erro ao enviar solicitação.');
+      amigoSelecionadoId = null;
+      input.value = '';
+      carregarSolicitacoes();
+      app.toast.create({ text: 'Solicitação enviada!', closeTimeout: 2000, position: 'center' }).open();
+    } catch (e) {
+      app.dialog.alert('Erro ao enviar solicitação.');
+    }
+  });
+});
+
+// ====== FIM FUNÇÕES DE AMIGOS ====
+
 carregarPerfil();
 carregarFilmesHome('tendencias', 'lista-tendencias');
+initAuth();
 
 async function carregarPerfil() {
   try {
@@ -25,8 +341,23 @@ async function carregarPerfil() {
     var dados = await res.json();
 
     var meuNomeSalvo = localStorage.getItem('nome_usuario_filminho');
+    var cidadeSalva = localStorage.getItem('filminho_user_cidade') || '';
+    var ufSalva = localStorage.getItem('filminho_user_uf') || '';
     document.getElementById('nome-usuario').innerText = meuNomeSalvo;
     document.getElementById('avatar-img').src = `https://ui-avatars.com/api/?name=${encodeURI(meuNomeSalvo)}&background=00e054&color=000&size=90`;
+    if (cidadeSalva || ufSalva) {
+      document.getElementById('cidade-usuario').innerText = `${cidadeSalva}${ufSalva ? '/' + ufSalva : ''}`;
+    } else {
+      document.getElementById('cidade-usuario').innerText = 'Cidade não informada';
+    }
+    if (dados.perfil) {
+      localStorage.setItem('nome_usuario_filminho', dados.perfil.nome || meuNomeSalvo);
+      if (dados.perfil.cidade) localStorage.setItem('filminho_user_cidade', dados.perfil.cidade);
+      if (dados.perfil.uf) localStorage.setItem('filminho_user_uf', dados.perfil.uf);
+      if (dados.perfil.cidade || dados.perfil.uf) {
+        document.getElementById('cidade-usuario').innerText = `${dados.perfil.cidade}${dados.perfil.uf ? '/' + dados.perfil.uf : ''}`;
+      }
+    }
 
     var htmlDiario = dados.avaliacoes.slice().reverse().map(function(av) {
       var seloReassistido = av.reassistido ? `<span style="color:#00e054; margin-right:6px;">[REASSISTIDO]</span>` : '';
@@ -396,10 +727,105 @@ function mostrarNoMapa(event, lat, lon) {
 }
 
 function editarPerfil() {
-  app.dialog.prompt('Como você quer ser chamado?', 'Editar Perfil', function (nome) {
-    if (!nome) return;
-    localStorage.setItem('nome_usuario_filminho', nome);
-    fetch(`${API_URL}/perfil/${MEU_ID_USUARIO}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome: nome }) });
-    carregarPerfil();
-  });
+  var nomeAtual = localStorage.getItem('nome_usuario_filminho') || '';
+  var cidadeAtual = localStorage.getItem('filminho_user_cidade') || '';
+  var ufAtual = localStorage.getItem('filminho_user_uf') || '';
+
+  var overlay = document.getElementById('edit-perfil-overlay');
+  if (!overlay) {
+    console.error('Overlay de edição não encontrado!');
+    return;
+  }
+
+  var inputNome = document.getElementById('edit-nome');
+  var inputCidade = document.getElementById('edit-cidade');
+  var selectUF = document.getElementById('edit-uf');
+  
+  if (inputNome) inputNome.value = nomeAtual;
+  if (inputCidade) inputCidade.value = cidadeAtual;
+  if (selectUF) selectUF.value = ufAtual;
+
+  // Popular UF com dados do Brasil
+  if (selectUF) {
+    selectUF.innerHTML = '<option value="">UF</option>';
+    fetch(API_URL + '/ibge/ufs')
+      .then(function(r) { return r.json(); })
+      .then(function(ufs) {
+        ufs.forEach(function(uf) {
+          var opt = document.createElement('option');
+          opt.value = uf.sigla;
+          opt.textContent = uf.sigla + ' - ' + uf.nome;
+          if (uf.sigla === ufAtual) opt.selected = true;
+          selectUF.appendChild(opt);
+        });
+      })
+      .catch(function() {
+        // Fallback se API IBGE falhar
+        ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].forEach(function(sigla) {
+          var opt = document.createElement('option');
+          opt.value = sigla;
+          opt.textContent = sigla;
+          if (sigla === ufAtual) opt.selected = true;
+          selectUF.appendChild(opt);
+        });
+      });
+  }
+
+  overlay.style.display = 'flex';
 }
+
+function fecharEditarPerfil() {
+  var overlay = document.getElementById('edit-perfil-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function salvarEditarPerfil() {
+  var novoNome = document.getElementById('edit-nome').value.trim();
+  var novaCidade = document.getElementById('edit-cidade').value.trim();
+  var novaUF = document.getElementById('edit-uf').value;
+  if (!novoNome) {
+    app.dialog.alert('Nome não pode ser vazio.');
+    return;
+  }
+  
+  // Mostrar loading
+  var loading = document.createElement('div');
+  loading.id = 'loading-overlay';
+  loading.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:50000;display:flex;align-items:center;justify-content:center;';
+  loading.innerHTML = '<div style="background:#1a1c23;padding:20px 30px;border-radius:12px;border:2px solid #00e054;color:#fff;font-size:16px;">Salvando...</div>';
+  document.body.appendChild(loading);
+  
+  fetch(API_URL + '/perfil/' + MEU_ID_USUARIO, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nome: novoNome, cidade: novaCidade, uf: novaUF })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (loading.parentNode) loading.parentNode.removeChild(loading);
+      if (data.erro) {
+        app.dialog.alert(data.erro);
+        return;
+      }
+      fecharEditarPerfil();
+      localStorage.setItem('nome_usuario_filminho', novoNome);
+      localStorage.setItem('filminho_user_cidade', novaCidade);
+      localStorage.setItem('filminho_user_uf', novaUF);
+      carregarPerfil();
+      app.toast.create({ text: 'Perfil atualizado!', closeTimeout: 2000, position: 'center' }).open();
+    })
+    .catch(function() {
+      if (loading.parentNode) loading.parentNode.removeChild(loading);
+      app.dialog.alert('Erro ao atualizar perfil.');
+    });
+}
+
+// Event listeners para o overlay de edição de perfil
+document.addEventListener('DOMContentLoaded', function() {
+  var btnSalvar = document.getElementById('btn-salvar-edit-perfil');
+  var btnCancelar = document.getElementById('btn-cancelar-edit-perfil');
+  var btnFechar = document.getElementById('btn-fechar-edit-perfil');
+  if (btnSalvar) btnSalvar.addEventListener('click', salvarEditarPerfil);
+  if (btnCancelar) btnCancelar.addEventListener('click', fecharEditarPerfil);
+  if (btnFechar) btnFechar.addEventListener('click', fecharEditarPerfil);
+});
