@@ -2,7 +2,66 @@
   "usuarios": [
     {
       "id": 1,
-      "nome": "Marcos / Oliver"
+      "nome": "Marcos / Oliver",
+      "nome_normalizado": "marcos / oliver",
+      "deletado_em": null,
+      "tipo": "user",
+      "senha_hash": "",
+      "senha_salt": "",
+      "consentimento_lgpd": false,
+      "consentimento_em": null,
+      "criado_em": "2026-05-18T16:15:24.279Z",
+      "cep": "",
+      "cidade": "",
+      "uf": ""
+    },
+    {
+      "id": 2,
+      "nome": "Oliver Henrique Ferreira de Jesus",
+      "nome_normalizado": "oliver henrique ferreira de jesus",
+      "email": "oliverhenriqueferreira@gmail.com",
+      "senha_hash": "scrypt$0cdb81d16e6b2dc17c7fd314cd14248d$e494e4a7f7e5fd7b8760960260c5ff3665315c9bf3e583784753a1070e52277b59bed6bd7398c79b507ccc073dccfab05721e3e2961cd1362cb17294c1cf6fed",
+      "senha_salt": "0cdb81d16e6b2dc17c7fd314cd14248d",
+      "cep": "72300635",
+      "cidade": "Brasília",
+      "uf": "DF",
+      "consentimento_lgpd": true,
+      "consentimento_em": "2026-05-18T16:34:26.538Z",
+      "criado_em": "2026-05-18T16:34:26.538Z",
+      "deletado_em": null,
+      "tipo": "user"
+    },
+    {
+      "id": 3,
+      "nome": "Teste",
+      "nome_normalizado": "teste",
+      "email": "teste@email",
+      "senha_hash": "scrypt$03ae7ae33f5b2624b349eb985cb7861e$ad458040479f8526a97d6423649b9483ddb487a1102428255f89cd10fd74cadf78e6923bd2d6b768b53147e02fca3e17c1f2aa5145b4761fae70e121f32ed264",
+      "senha_salt": "03ae7ae33f5b2624b349eb985cb7861e",
+      "cep": "72300635",
+      "cidade": "Brasília",
+      "uf": "DF",
+      "consentimento_lgpd": true,
+      "consentimento_em": "2026-05-18T19:05:12.317Z",
+      "criado_em": "2026-05-18T19:05:12.317Z",
+      "deletado_em": null,
+      "tipo": "user"
+    },
+    {
+      "id": 4,
+      "nome": "Jose",
+      "nome_normalizado": "jose",
+      "email": "jose@email",
+      "senha_hash": "scrypt$57e7bbcaf81434f93893e9fb0d005ca7$3f5b7e7a43cfc6903b00401f3efeeaa0e5c66f5fd130be477992309b28b02f825e4a0761767314b3d8c2453a8ca2f1eb5833e636721c546687e7870dccfe02e9",
+      "senha_salt": "57e7bbcaf81434f93893e9fb0d005ca7",
+      "cep": "72300635",
+      "cidade": "Brasília",
+      "uf": "DF",
+      "consentimento_lgpd": true,
+      "consentimento_em": "2026-05-18T23:01:35.476Z",
+      "criado_em": "2026-05-18T23:01:35.476Z",
+      "deletado_em": null,
+      "tipo": "user"
     }
   ],
   "avaliacoes": [
@@ -18,7 +77,8 @@
         "lat": -15.8440654,
         "lon": -47.9153038
       },
-      "id_avaliacao": 1776943838726
+      "id_avaliacao": 1776943838726,
+      "criado_em": "2026-05-18T16:15:24.280Z"
     },
     {
       "id_avaliacao": 1776945991916,
@@ -29,7 +89,8 @@
       "poster_path": "/nuF5yWtTJEEAd4Qa6cVkYz1XCST.jpg",
       "reassistido": false,
       "foto": null,
-      "localizacao": null
+      "localizacao": null,
+      "criado_em": "2026-05-18T16:15:24.280Z"
     },
     {
       "id_avaliacao": 1776950554914,
@@ -43,7 +104,8 @@
       "localizacao": {
         "lat": -15.8440554,
         "lon": -47.9153049
-      }
+      },
+      "criado_em": "2026-05-18T16:15:24.280Z"
     },
     {
       "id_avaliacao": 1776960411148,
@@ -57,7 +119,65 @@
       "localizacao": {
         "lat": -15.8440569,
         "lon": -47.9153032
-      }
+      },
+      "criado_em": "2026-05-18T16:15:24.280Z"
+    },
+    {
+      "id_avaliacao": 1779122083364,
+      "id_usuario": 2,
+      "id_filme": 1439930,
+      "titulo_filme": "O Justiceiro: Uma Última Morte",
+      "nota": 5,
+      "poster_path": "/ppRmgI2MbEOADvKKvlNoRJHPXOT.jpg",
+      "reassistido": false,
+      "foto": null,
+      "localizacao": null,
+      "criado_em": "2026-05-18T16:53:05.799Z"
+    }
+  ],
+  "solicitacoes_amizade": [
+    {
+      "id": 1,
+      "de_id": 2,
+      "para_id": 1,
+      "status": "pendente",
+      "criado_em": "2026-05-18T18:06:46.232Z"
+    },
+    {
+      "id": 2,
+      "de_id": 3,
+      "para_id": 2,
+      "status": "aceita",
+      "criado_em": "2026-05-18T19:05:32.184Z"
+    },
+    {
+      "id": 3,
+      "de_id": 4,
+      "para_id": 2,
+      "status": "aceita",
+      "criado_em": "2026-05-18T23:02:12.536Z"
+    }
+  ],
+  "amizades": [
+    {
+      "usuario_id": 3,
+      "amigo_id": 2,
+      "desde_em": "2026-05-18T19:05:40.915Z"
+    },
+    {
+      "usuario_id": 2,
+      "amigo_id": 3,
+      "desde_em": "2026-05-18T19:05:40.915Z"
+    },
+    {
+      "usuario_id": 4,
+      "amigo_id": 2,
+      "desde_em": "2026-05-18T23:02:21.371Z"
+    },
+    {
+      "usuario_id": 2,
+      "amigo_id": 4,
+      "desde_em": "2026-05-18T23:02:21.371Z"
     }
   ]
 }

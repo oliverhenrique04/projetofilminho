@@ -3,6 +3,7 @@ const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const app = express();
 app.use(cors());
@@ -13,12 +14,15 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, '../www')));
 
 const TMDB_API_KEY = 'fa8b322b4dffd455e219a710fc5910e9';
-const ARQUIVO_DB = path.join(__dirname, 'banco_filminho.json');
+const PORTA = process.env.PORT || 3000;
+const ARQUIVO_DB = process.env.FILMINHO_DB || path.join(__dirname, 'banco_filminho.json');
 
 if (!fs.existsSync(ARQUIVO_DB)) {
     const dadosIniciais = {
-        usuarios: [{ id: 1, nome: 'Oliver Henrique' }],
-        avaliacoes: []
+        usuarios: [],
+        avaliacoes: [],
+        solicitacoes_amizade: [],
+        amizades: []
     };
     fs.writeFileSync(ARQUIVO_DB, JSON.stringify(dadosIniciais, null, 2));
 }
@@ -58,7 +62,85 @@ function migrarAvaliacoesAntigas() {
 }
 // Roda o script de migração na inicialização do servidor
 migrarAvaliacoesAntigas();
-// =================================================================
+
+// ====== FUNÇÕES DE AUTENTICAÇÃO E MIGRAÇÃO DE SCHEMA ====
+function normalizarNome(nome) {
+    return (nome || '').trim().toLowerCase();
+}
+
+function gerarSalt() {
+    return crypto.randomBytes(16).toString('hex');
+}
+
+function hashSenha(senha, salt) {
+    const derived = crypto.scryptSync(senha, salt, 64);
+    return `scrypt$${salt}$${derived.toString('hex')}`;
+}
+
+function validarSenha(senha, hashArmazenado) {
+    const parts = (hashArmazenado || '').split('$');
+    if (parts.length !== 3) return false;
+    const salt = parts[1];
+    const derived = crypto.scryptSync(senha, salt, 64).toString('hex');
+    return crypto.timingSafeEqual(Buffer.from(parts[2], 'hex'), Buffer.from(derived, 'hex'));
+}
+
+function garantirEstruturaBanco() {
+    const banco = lerBanco();
+    let mudou = false;
+
+    if (!Array.isArray(banco.usuarios)) { banco.usuarios = []; mudou = true; }
+    if (!Array.isArray(banco.avaliacoes)) { banco.avaliacoes = []; mudou = true; }
+    if (!Array.isArray(banco.solicitacoes_amizade)) { banco.solicitacoes_amizade = []; mudou = true; }
+    if (!Array.isArray(banco.amizades)) { banco.amizades = []; mudou = true; }
+
+    banco.usuarios.forEach((u) => {
+        if (!u.nome_normalizado && u.nome) { u.nome_normalizado = normalizarNome(u.nome); mudou = true; }
+        if (u.deletado_em === undefined) { u.deletado_em = null; mudou = true; }
+        if (!u.tipo) { u.tipo = 'user'; mudou = true; }
+        if (!u.senha_hash) { u.senha_hash = ''; mudou = true; }
+        if (!u.senha_salt) { u.senha_salt = ''; mudou = true; }
+        if (u.consentimento_lgpd === undefined) { u.consentimento_lgpd = false; mudou = true; }
+        if (u.consentimento_em === undefined) { u.consentimento_em = null; mudou = true; }
+        if (u.criado_em === undefined) { u.criado_em = new Date().toISOString(); mudou = true; }
+        if (u.cep === undefined) { u.cep = ''; mudou = true; }
+        if (u.cidade === undefined) { u.cidade = ''; mudou = true; }
+        if (u.uf === undefined) { u.uf = ''; mudou = true; }
+    });
+
+    banco.avaliacoes.forEach((a) => {
+        if (!a.criado_em) { a.criado_em = new Date().toISOString(); mudou = true; }
+    });
+
+    // Seed demo user
+    if (!banco.usuarios.find(u => u.id === 1)) {
+        const salt = gerarSalt();
+        banco.usuarios.push({
+            id: 1,
+            nome: 'Admin Demo',
+            nome_normalizado: normalizarNome('Admin Demo'),
+            email: 'admin@email',
+            senha_hash: hashSenha('123456', salt),
+            senha_salt: salt,
+            cep: '',
+            cidade: '',
+            uf: '',
+            consentimento_lgpd: true,
+            consentimento_em: new Date().toISOString(),
+            criado_em: new Date().toISOString(),
+            deletado_em: null,
+            tipo: 'demo',
+        });
+        mudou = true;
+        console.log('MIGRAÇÃO: Usuário demo (id 1) criado.');
+    }
+
+    if (mudou) salvarBanco(banco);
+    return banco;
+}
+
+garantirEstruturaBanco();
+// ====== FIM FUNÇÕES DE AUTENTICAÇÃO E MIGRAÇÃO ====
 
 app.get('/api/filmes/tendencias', async (req, res) => {
     try {
@@ -161,12 +243,21 @@ app.get('/api/perfil/:id_usuario', (req, res) => {
 
 app.put('/api/perfil/:id_usuario', (req, res) => {
     const id = parseInt(req.params.id_usuario);
-    const { nome } = req.body;
+    const { nome, cidade, uf } = req.body;
     const banco = lerBanco();
     const usuario = banco.usuarios.find(u => u.id === id);
 
     if (usuario) {
-        usuario.nome = nome;
+        if (nome && nome !== usuario.nome) {
+            const nomeNorm = normalizarNome(nome);
+            if (banco.usuarios.some(u => u.id !== id && u.nome_normalizado === nomeNorm)) {
+                return res.status(409).json({ erro: 'Nome já cadastrado.' });
+            }
+            usuario.nome = nome;
+            usuario.nome_normalizado = nomeNorm;
+        }
+        if (cidade !== undefined) usuario.cidade = cidade;
+        if (uf !== undefined) usuario.uf = uf;
         salvarBanco(banco);
         res.json(usuario);
     } else {
@@ -174,7 +265,232 @@ app.put('/api/perfil/:id_usuario', (req, res) => {
     }
 });
 
-const PORTA = process.env.PORT || 3000;
+// ====== ROTAS DE AUTENTICAÇÃO ====
+app.post('/api/auth/registro', async (req, res) => {
+    try {
+        const { nome, email, senha, cep, consentimento_lgpd } = req.body;
+        if (!nome || !email || !senha || !cep) return res.status(400).json({ erro: 'Dados obrigatórios ausentes.' });
+        if (!consentimento_lgpd) return res.status(400).json({ erro: 'Consentimento LGPD obrigatório.' });
+        if (senha.length < 6) return res.status(400).json({ erro: 'Senha mínima de 6 caracteres.' });
+
+        const banco = lerBanco();
+        const nomeNorm = normalizarNome(nome);
+
+        if (banco.usuarios.some(u => u.email === email)) return res.status(409).json({ erro: 'Email já cadastrado.' });
+        if (banco.usuarios.some(u => u.nome_normalizado === nomeNorm)) return res.status(409).json({ erro: 'Nome já cadastrado.' });
+
+        const cepLimpo = String(cep).replace(/\D/g, '');
+        if (cepLimpo.length !== 8) return res.status(400).json({ erro: 'CEP inválido.' });
+
+        const viaCep = await axios.get(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+        if (viaCep.data.erro) return res.status(400).json({ erro: 'CEP não encontrado.' });
+
+        const novoId = banco.usuarios.reduce((max, u) => Math.max(max, u.id), 0) + 1;
+        const salt = gerarSalt();
+        const novoUsuario = {
+            id: novoId,
+            nome,
+            nome_normalizado: nomeNorm,
+            email,
+            senha_hash: hashSenha(senha, salt),
+            senha_salt: salt,
+            cep: cepLimpo,
+            cidade: viaCep.data.localidade,
+            uf: viaCep.data.uf,
+            consentimento_lgpd: true,
+            consentimento_em: new Date().toISOString(),
+            criado_em: new Date().toISOString(),
+            deletado_em: null,
+            tipo: 'user',
+        };
+
+        banco.usuarios.push(novoUsuario);
+        salvarBanco(banco);
+        res.status(201).json({ id: novoUsuario.id, nome: novoUsuario.nome, email: novoUsuario.email, cidade: novoUsuario.cidade, uf: novoUsuario.uf });
+    } catch (err) {
+        console.error('Erro no registro:', err);
+        res.status(500).json({ erro: 'Erro ao registrar usuário.' });
+    }
+});
+
+app.post('/api/auth/login', (req, res) => {
+    const { email, senha } = req.body;
+    if (!email || !senha) return res.status(400).json({ erro: 'Email e senha obrigatórios.' });
+    const banco = lerBanco();
+    const usuario = banco.usuarios.find(u => u.email === email && !u.deletado_em);
+    if (!usuario) return res.status(401).json({ erro: 'Credenciais inválidas.' });
+    if (!validarSenha(senha, usuario.senha_hash)) return res.status(401).json({ erro: 'Credenciais inválidas.' });
+    res.json({ id: usuario.id, nome: usuario.nome, email: usuario.email, cidade: usuario.cidade, uf: usuario.uf });
+});
+
+// ====== FIM ROTAS DE AUTENTICAÇÃO ====
+
+// ====== ROTAS DE USUÁRIOS ====
+app.get('/api/usuarios/buscar', (req, res) => {
+    const termo = normalizarNome(req.query.nome || '');
+    const usuarioId = parseInt(req.query.usuario_id || '0', 10);
+    if (!termo || termo.length < 2) return res.json([]);
+    const banco = lerBanco();
+    const sugestoes = banco.usuarios
+        .filter(u => !u.deletado_em && u.id !== usuarioId && u.nome_normalizado.includes(termo))
+        .slice(0, 10)
+        .map(u => ({ id: u.id, nome: u.nome }));
+    res.json(sugestoes);
+});
+
+app.delete('/api/usuarios/:id', (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const banco = lerBanco();
+
+    banco.usuarios = banco.usuarios.filter(u => u.id !== id);
+    banco.avaliacoes = banco.avaliacoes.filter(a => a.id_usuario !== id);
+    banco.solicitacoes_amizade = banco.solicitacoes_amizade.filter(s => s.de_id !== id && s.para_id !== id);
+    banco.amizades = banco.amizades.filter(a => a.usuario_id !== id && a.amigo_id !== id);
+
+    salvarBanco(banco);
+    res.json({ ok: true });
+});
+
+// ====== FIM ROTAS DE USUÁRIOS ====
+
+// ====== ROTAS DE AMIGOS ====
+app.post('/api/amigos/solicitar', (req, res) => {
+    const { de_id, para_id } = req.body;
+    if (!de_id || !para_id) return res.status(400).json({ erro: 'Dados obrigatórios.' });
+    if (de_id === para_id) return res.status(400).json({ erro: 'Não pode solicitar a si mesmo.' });
+    const banco = lerBanco();
+
+    const jaAmigos = banco.amizades.some(a => a.usuario_id === de_id && a.amigo_id === para_id);
+    if (jaAmigos) return res.status(409).json({ erro: 'Já são amigos.' });
+
+    const pendente = banco.solicitacoes_amizade.find(s =>
+        (s.de_id === de_id && s.para_id === para_id && s.status === 'pendente') ||
+        (s.de_id === para_id && s.para_id === de_id && s.status === 'pendente')
+    );
+    if (pendente) return res.status(409).json({ erro: 'Solicitação já pendente.' });
+
+    const novaId = banco.solicitacoes_amizade.reduce((max, s) => Math.max(max, s.id || 0), 0) + 1;
+    const solicitacao = { id: novaId, de_id, para_id, status: 'pendente', criado_em: new Date().toISOString() };
+    banco.solicitacoes_amizade.push(solicitacao);
+    salvarBanco(banco);
+    res.status(201).json(solicitacao);
+});
+
+app.post('/api/amigos/aceitar', (req, res) => {
+    const { solicitacao_id, usuario_id } = req.body;
+    const banco = lerBanco();
+    const solicitacao = banco.solicitacoes_amizade.find(s => s.id === solicitacao_id);
+    if (!solicitacao || solicitacao.status !== 'pendente') return res.status(404).json({ erro: 'Solicitação inválida.' });
+    if (solicitacao.para_id !== usuario_id) return res.status(403).json({ erro: 'Não autorizado.' });
+
+    solicitacao.status = 'aceita';
+    const desde = new Date().toISOString();
+    banco.amizades.push({ usuario_id: solicitacao.de_id, amigo_id: solicitacao.para_id, desde_em: desde });
+    banco.amizades.push({ usuario_id: solicitacao.para_id, amigo_id: solicitacao.de_id, desde_em: desde });
+
+    salvarBanco(banco);
+    res.json({ ok: true });
+});
+
+app.post('/api/amigos/recusar', (req, res) => {
+    const { solicitacao_id, usuario_id } = req.body;
+    const banco = lerBanco();
+    const solicitacao = banco.solicitacoes_amizade.find(s => s.id === solicitacao_id);
+    if (!solicitacao || solicitacao.status !== 'pendente') return res.status(404).json({ erro: 'Solicitação inválida.' });
+    if (solicitacao.para_id !== usuario_id) return res.status(403).json({ erro: 'Não autorizado.' });
+
+    solicitacao.status = 'recusada';
+    salvarBanco(banco);
+    res.json({ ok: true });
+});
+
+app.get('/api/amigos', (req, res) => {
+    const usuarioId = parseInt(req.query.usuario_id || '0', 10);
+    const banco = lerBanco();
+    const ids = banco.amizades.filter(a => a.usuario_id === usuarioId).map(a => a.amigo_id);
+    const amigos = banco.usuarios.filter(u => ids.includes(u.id)).map(u => ({ id: u.id, nome: u.nome }));
+    res.json(amigos);
+});
+
+app.get('/api/amigos/pendentes', (req, res) => {
+    const usuarioId = parseInt(req.query.usuario_id || '0', 10);
+    const banco = lerBanco();
+    const recebidas = banco.solicitacoes_amizade.filter(s => s.para_id === usuarioId && s.status === 'pendente');
+    const enviadas = banco.solicitacoes_amizade.filter(s => s.de_id === usuarioId && s.status === 'pendente');
+    res.json({ recebidas, enviadas });
+});
+
+app.get('/api/amigos/:amigo_id/avaliacoes', (req, res) => {
+    const amigoId = parseInt(req.params.amigo_id, 10);
+    const usuarioId = parseInt(req.query.usuario_id || '0', 10);
+    const banco = lerBanco();
+
+    const ehAmigo = banco.amizades.some(a => a.usuario_id === usuarioId && a.amigo_id === amigoId);
+    if (!ehAmigo) return res.status(403).json({ erro: 'Não autorizado.' });
+
+    const avals = banco.avaliacoes.filter(a => a.id_usuario === amigoId).map(a => ({
+        id_avaliacao: a.id_avaliacao,
+        id_filme: a.id_filme,
+        titulo_filme: a.titulo_filme,
+        nota: a.nota,
+        poster_path: a.poster_path,
+        foto: a.foto,
+        localizacao: a.localizacao,
+    }));
+
+    res.json(avals);
+});
+
+// ====== FIM ROTAS DE AMIGOS ====
+
+// ====== PROXIES DE APIs PÚBLICAS ====
+app.get('/api/cep/:cep', async (req, res) => {
+    try {
+        const cepLimpo = String(req.params.cep || '').replace(/\D/g, '');
+        const resposta = await axios.get(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+        res.json(resposta.data);
+    } catch (e) {
+        res.status(500).json({ erro: 'Erro ao consultar CEP.' });
+    }
+});
+
+// Lista local de UFs (catálogo IBGE via dados.gov.br)
+// Fonte: https://dados.gov.br/dados/conjuntos-dados/lista-de-municipios
+const UFS_BRASIL = [
+    { sigla: 'AC', nome: 'Acre' },
+    { sigla: 'AL', nome: 'Alagoas' },
+    { sigla: 'AP', nome: 'Amapá' },
+    { sigla: 'AM', nome: 'Amazonas' },
+    { sigla: 'BA', nome: 'Bahia' },
+    { sigla: 'CE', nome: 'Ceará' },
+    { sigla: 'DF', nome: 'Distrito Federal' },
+    { sigla: 'ES', nome: 'Espírito Santo' },
+    { sigla: 'GO', nome: 'Goiás' },
+    { sigla: 'MA', nome: 'Maranhão' },
+    { sigla: 'MT', nome: 'Mato Grosso' },
+    { sigla: 'MS', nome: 'Mato Grosso do Sul' },
+    { sigla: 'MG', nome: 'Minas Gerais' },
+    { sigla: 'PA', nome: 'Pará' },
+    { sigla: 'PB', nome: 'Paraíba' },
+    { sigla: 'PR', nome: 'Paraná' },
+    { sigla: 'PE', nome: 'Pernambuco' },
+    { sigla: 'PI', nome: 'Piauí' },
+    { sigla: 'RJ', nome: 'Rio de Janeiro' },
+    { sigla: 'RN', nome: 'Rio Grande do Norte' },
+    { sigla: 'RS', nome: 'Rio Grande do Sul' },
+    { sigla: 'RO', nome: 'Rondônia' },
+    { sigla: 'RR', nome: 'Roraima' },
+    { sigla: 'SC', nome: 'Santa Catarina' },
+    { sigla: 'SP', nome: 'São Paulo' },
+    { sigla: 'SE', nome: 'Sergipe' },
+    { sigla: 'TO', nome: 'Tocantins' }
+];
+
+app.get('/api/ibge/ufs', (req, res) => {
+    res.json(UFS_BRASIL);
+});
+
+// ====== FIM PROXIES DE APIs PÚBLICAS ====
 
 app.listen(PORTA, '0.0.0.0', () => {
     console.log('=========================================');
