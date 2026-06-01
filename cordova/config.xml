@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="io.framework7.myapp" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+<widget id="io.framework7.myapp" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
     <name>Filminho</name>
     <description>
         A sample Apache Cordova application that responds to the deviceready event.
@@ -13,10 +13,16 @@
 
     <allow-navigation href="*" />
 
+    <plugin name="cordova-plugin-geolocation" spec="^5.0.0" />
+
     <platform name="android">
       <preference name="StatusBarOverlaysWebView" value="false" />
       <preference name="android-minSdkVersion" value="24" />
       <preference name="SplashMaintainAspectRatio" value="true" />
+      <config-file parent="/manifest" target="AndroidManifest.xml">
+        <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+        <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+      </config-file>
       <splash density="land-hdpi" src="res/screen/android/drawable-hdpi/screen.png" />
       <splash density="land-mdpi" src="res/screen/android/drawable-mdpi/screen.png" />
       <splash density="land-xhdpi" src="res/screen/android/drawable-xhdpi/screen.png" />
@@ -39,6 +45,9 @@
     <platform name="ios">
       <config-file parent="CFBundleAllowMixedLocalizations" platform="ios" target="*-Info.plist">
         <true />
+      </config-file>
+      <config-file target="*-Info.plist" parent="NSLocationWhenInUseUsageDescription">
+        <string>Usamos sua localizacao para registrar onde a avaliacao foi feita.</string>
       </config-file>
       <preference name="scheme" value="app" />
       <preference name="hostname" value="localhost" />
