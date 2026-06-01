@@ -721,9 +721,60 @@ function visualizarFoto(event, fotoBase64) {
     }).open();
 }
 
+let mapaAtual = null;
+let mapaMarker = null;
+
+function abrirMapaPopup(lat, lon) {
+  const container = document.getElementById('map-container');
+  const fallback = document.getElementById('map-fallback');
+
+  if (!container || !fallback) {
+    app.dialog.alert('Nao foi possivel carregar o mapa.');
+    return;
+  }
+
+  app.popup.open('#map-popup');
+
+  const numLat = Number(lat);
+  const numLon = Number(lon);
+  fallback.textContent = 'Carregando mapa...';
+  fallback.style.display = 'flex';
+  if (!Number.isFinite(numLat) || !Number.isFinite(numLon)) {
+    fallback.textContent = 'Nao foi possivel carregar o mapa.';
+    fallback.style.display = 'flex';
+    return;
+  }
+
+  setTimeout(() => {
+    try {
+      fallback.style.display = 'none';
+      if (!window.L) throw new Error('Leaflet nao carregou');
+
+      if (!mapaAtual) {
+        mapaAtual = L.map('map-container');
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(mapaAtual);
+        mapaMarker = L.marker([numLat, numLon]).addTo(mapaAtual);
+      } else if (mapaMarker) {
+        mapaMarker.setLatLng([numLat, numLon]);
+      } else {
+        mapaMarker = L.marker([numLat, numLon]).addTo(mapaAtual);
+      }
+
+      mapaAtual.setView([numLat, numLon], 15);
+      mapaAtual.invalidateSize();
+    } catch (err) {
+      fallback.textContent = 'Nao foi possivel carregar o mapa.';
+      fallback.style.display = 'flex';
+    }
+  }, 300);
+}
+
 function mostrarNoMapa(event, lat, lon) {
-    event.stopPropagation();
-    window.open(`https://maps.google.com/?q=${lat},${lon}`, '_system');
+  event.stopPropagation();
+  abrirMapaPopup(lat, lon);
 }
 
 function editarPerfil() {
