@@ -62,6 +62,22 @@
       "criado_em": "2026-05-18T23:01:35.476Z",
       "deletado_em": null,
       "tipo": "user"
+    },
+    {
+      "id": 5,
+      "nome": "teste2",
+      "nome_normalizado": "teste2",
+      "email": "teste2@gmail.com",
+      "senha_hash": "scrypt$d5ab7c487fee52cc7e199e11dca69375$8066c34f4d6ec3245d63d3a415e7fef0291cd1875cdb928ed30c7ac44ba4b94e6ea3688562d828b3ee529e573817f43dbb53f3f0e34d4d9618dcc030e3536547",
+      "senha_salt": "d5ab7c487fee52cc7e199e11dca69375",
+      "cep": "72300635",
+      "cidade": "Brasília",
+      "uf": "DF",
+      "consentimento_lgpd": true,
+      "consentimento_em": "2026-05-25T22:33:09.446Z",
+      "criado_em": "2026-05-25T22:33:09.446Z",
+      "deletado_em": null,
+      "tipo": "user"
     }
   ],
   "avaliacoes": [
@@ -133,6 +149,18 @@
       "foto": null,
       "localizacao": null,
       "criado_em": "2026-05-18T16:53:05.799Z"
+    },
+    {
+      "id_avaliacao": 1779748500662,
+      "id_usuario": 5,
+      "id_filme": 687163,
+      "titulo_filme": "Devoradores de Estrelas",
+      "nota": 4.5,
+      "poster_path": "/2i8uru7rlbHKaoIbC2V4FZLT7uW.jpg",
+      "reassistido": false,
+      "foto": null,
+      "localizacao": null,
+      "criado_em": "2026-06-01T17:23:13.245Z"
     }
   ],
   "solicitacoes_amizade": [
@@ -156,6 +184,13 @@
       "para_id": 2,
       "status": "aceita",
       "criado_em": "2026-05-18T23:02:12.536Z"
+    },
+    {
+      "id": 4,
+      "de_id": 5,
+      "para_id": 2,
+      "status": "aceita",
+      "criado_em": "2026-05-25T22:35:10.166Z"
     }
   ],
   "amizades": [
@@ -178,6 +213,16 @@
       "usuario_id": 2,
       "amigo_id": 4,
       "desde_em": "2026-05-18T23:02:21.371Z"
+    },
+    {
+      "usuario_id": 5,
+      "amigo_id": 2,
+      "desde_em": "2026-05-25T22:35:24.784Z"
+    },
+    {
+      "usuario_id": 2,
+      "amigo_id": 5,
+      "desde_em": "2026-05-25T22:35:24.784Z"
     }
   ]
 }
