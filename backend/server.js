@@ -98,7 +98,10 @@ function criarNotificacao(banco, notificacao) {
         titulo: notificacao.titulo || '',
         mensagem: notificacao.mensagem || '',
         tipo: notificacao.tipo || 'geral',
+        canal: notificacao.canal || 'in_app',
+        dados: notificacao.dados || {},
         lida: false,
+        lida_em: null,
         criado_em: new Date().toISOString(),
     };
 
@@ -113,7 +116,7 @@ function listarNotificacoesUsuario(banco, usuarioId) {
 }
 
 function contarNaoLidas(banco, usuarioId) {
-    return banco.notificacoes.filter((notificacao) => notificacao.usuario_id === usuarioId && !notificacao.lida).length;
+    return banco.notificacoes.filter((notificacao) => notificacao.usuario_id === usuarioId && !notificacao.lida_em).length;
 }
 
 function upsertDispositivoPush(banco, payload) {
@@ -122,10 +125,12 @@ function upsertDispositivoPush(banco, payload) {
 
     if (existente) {
         existente.usuario_id = payload.usuario_id;
-        existente.plataforma = payload.plataforma || existente.plataforma || 'web';
+        existente.platform = payload.platform || existente.platform || existente.plataforma || 'web';
+        existente.device_label = payload.device_label || existente.device_label || '';
         existente.ativo = true;
         existente.atualizado_em = agora;
         if (!existente.criado_em) existente.criado_em = agora;
+        if (existente.plataforma !== undefined) delete existente.plataforma;
         return existente;
     }
 
@@ -133,7 +138,8 @@ function upsertDispositivoPush(banco, payload) {
         id: gerarNovoId(banco.dispositivos_push, 'id'),
         usuario_id: payload.usuario_id,
         token: payload.token,
-        plataforma: payload.plataforma || 'web',
+        platform: payload.platform || 'web',
+        device_label: payload.device_label || '',
         ativo: true,
         criado_em: agora,
         atualizado_em: agora,
@@ -183,12 +189,18 @@ function garantirEstruturaBanco() {
 
     banco.notificacoes.forEach((notificacao) => {
         if (notificacao.lida === undefined) { notificacao.lida = false; mudou = true; }
+        if (!notificacao.canal) { notificacao.canal = 'in_app'; mudou = true; }
+        if (notificacao.dados === undefined || notificacao.dados === null) { notificacao.dados = {}; mudou = true; }
+        if (notificacao.lida_em === undefined) { notificacao.lida_em = notificacao.lida ? (notificacao.criado_em || new Date().toISOString()) : null; mudou = true; }
+        if (!!notificacao.lida_em !== !!notificacao.lida) { notificacao.lida = !!notificacao.lida_em; mudou = true; }
         if (!notificacao.criado_em) { notificacao.criado_em = new Date().toISOString(); mudou = true; }
     });
 
     banco.dispositivos_push.forEach((dispositivo) => {
         if (dispositivo.ativo === undefined) { dispositivo.ativo = true; mudou = true; }
-        if (!dispositivo.plataforma) { dispositivo.plataforma = 'web'; mudou = true; }
+        if (!dispositivo.platform) { dispositivo.platform = dispositivo.plataforma || 'web'; mudou = true; }
+        if (dispositivo.plataforma !== undefined) { delete dispositivo.plataforma; mudou = true; }
+        if (dispositivo.device_label === undefined) { dispositivo.device_label = ''; mudou = true; }
         if (!dispositivo.criado_em) { dispositivo.criado_em = new Date().toISOString(); mudou = true; }
         if (!dispositivo.atualizado_em) { dispositivo.atualizado_em = dispositivo.criado_em; mudou = true; }
     });
@@ -557,6 +569,7 @@ app.post('/api/notificacoes/marcar-lida', (req, res) => {
     }
 
     notificacao.lida = true;
+    notificacao.lida_em = new Date().toISOString();
     salvarBanco(banco);
     res.json({ ok: true });
 });
@@ -568,6 +581,7 @@ app.post('/api/notificacoes/marcar-todas-lidas', (req, res) => {
     banco.notificacoes.forEach((notificacao) => {
         if (notificacao.usuario_id === usuarioId) {
             notificacao.lida = true;
+            notificacao.lida_em = notificacao.lida_em || new Date().toISOString();
         }
     });
 
@@ -576,13 +590,13 @@ app.post('/api/notificacoes/marcar-todas-lidas', (req, res) => {
 });
 
 app.post('/api/push/register', (req, res) => {
-    const { usuario_id, token, plataforma } = req.body;
+    const { usuario_id, token, platform, device_label } = req.body;
     if (!usuario_id || !token) {
         return res.status(400).json({ erro: 'Dados obrigatórios.' });
     }
 
     const banco = lerBanco();
-    const dispositivo = upsertDispositivoPush(banco, { usuario_id, token, plataforma });
+    const dispositivo = upsertDispositivoPush(banco, { usuario_id, token, platform, device_label });
     salvarBanco(banco);
     res.json({ ok: true, dispositivo });
 });
