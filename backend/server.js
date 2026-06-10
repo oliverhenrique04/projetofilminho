@@ -368,9 +368,9 @@ app.put('/api/perfil/:id_usuario', (req, res) => {
             usuario.nome_normalizado = nomeNorm;
         }
         if (cidade !== undefined) usuario.cidade = cidade;
-        if (uf !== undefined) usuario.uf = uf;
+       if (uf !== undefined) usuario.uf = uf;
         salvarBanco(banco);
-        res.json(usuario);
+        res.json(serializarUsuarioPublico(usuario));
     } else {
         res.status(404).json({ erro: 'Usuário não encontrado' });
     }

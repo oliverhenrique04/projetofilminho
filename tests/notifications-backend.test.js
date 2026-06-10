@@ -26,6 +26,19 @@ async function getJson(url, token) {
   return { res, data };
 }
 
+async function putJson(url, body, token) {
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'x-filminho-token': token } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { res, data };
+}
+
 async function registrarUsuario(baseUrl, suffix) {
   const registro = await postJson(baseUrl + '/api/auth/registro', {
     nome: 'notif_user_' + suffix,
@@ -51,6 +64,19 @@ test('notification endpoints start empty for a new user', async () => {
     const perfil = await getJson(baseUrl + '/api/perfil/' + usuario.id);
     assert.equal(perfil.res.status, 200);
     assert.equal(perfil.data.perfil.token, undefined);
+    assert.equal(perfil.data.perfil.senha_hash, undefined);
+    assert.equal(perfil.data.perfil.senha_salt, undefined);
+
+    const perfilAtualizado = await putJson(baseUrl + '/api/perfil/' + usuario.id, {
+      cidade: 'Sao Paulo',
+      uf: 'SP',
+    });
+    assert.equal(perfilAtualizado.res.status, 200);
+    assert.equal(perfilAtualizado.data.token, undefined);
+    assert.equal(perfilAtualizado.data.senha_hash, undefined);
+    assert.equal(perfilAtualizado.data.senha_salt, undefined);
+    assert.equal(perfilAtualizado.data.cidade, 'Sao Paulo');
+    assert.equal(perfilAtualizado.data.uf, 'SP');
 
     const notificacoes = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + usuario.id, usuario.token);
     assert.equal(notificacoes.res.status, 200);
