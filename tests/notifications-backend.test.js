@@ -290,3 +290,71 @@ test('push registry upserts a token and unregister deactivates it', async () => 
     stopServer(child);
   }
 });
+
+test('friend request creates inbox notification for recipient', async () => {
+  const dbPath = path.join(os.tmpdir(), 'filminho-friend-notif-' + Date.now() + '.json');
+  const { child, baseUrl } = await startServer({ port: 3116, dbPath });
+
+  try {
+    const remetente = await registrarUsuario(baseUrl, 'friend_request_a_' + Date.now());
+    const destino = await registrarUsuario(baseUrl, 'friend_request_b_' + Date.now());
+
+    const solicitacao = await postJson(baseUrl + '/api/amigos/solicitar', {
+      de_id: remetente.id,
+      para_id: destino.id,
+    });
+    assert.equal(solicitacao.res.status, 201);
+
+    const inbox = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + destino.id, destino.token);
+    const total = await getJson(baseUrl + '/api/notificacoes/nao-lidas/total?usuario_id=' + destino.id, destino.token);
+
+    assert.equal(inbox.res.status, 200);
+    assert.equal(inbox.data.length, 1);
+    assert.equal(inbox.data[0].tipo, 'amizade_solicitada');
+    assert.match(inbox.data[0].mensagem, /friend_request_a_/);
+    assert.equal(inbox.data[0].dados.de_id, remetente.id);
+    assert.equal(total.res.status, 200);
+    assert.equal(total.data.total, 1);
+  } finally {
+    stopServer(child);
+  }
+});
+
+test('friend accept creates notification for requester and read endpoints clear the badge', async () => {
+  const dbPath = path.join(os.tmpdir(), 'filminho-accept-notif-' + Date.now() + '.json');
+  const { child, baseUrl } = await startServer({ port: 3117, dbPath });
+
+  try {
+    const remetente = await registrarUsuario(baseUrl, 'friend_accept_a_' + Date.now());
+    const destino = await registrarUsuario(baseUrl, 'friend_accept_b_' + Date.now());
+
+    const solicitacao = await postJson(baseUrl + '/api/amigos/solicitar', {
+      de_id: remetente.id,
+      para_id: destino.id,
+    });
+    assert.equal(solicitacao.res.status, 201);
+
+    const aceitar = await postJson(baseUrl + '/api/amigos/aceitar', {
+      solicitacao_id: solicitacao.data.id,
+      usuario_id: destino.id,
+    });
+    assert.equal(aceitar.res.status, 200);
+
+    const inbox = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + remetente.id, remetente.token);
+    assert.equal(inbox.res.status, 200);
+    assert.equal(inbox.data[0].tipo, 'amizade_aceita');
+    assert.equal(inbox.data[0].dados.amigo_id, destino.id);
+
+    const marcar = await postJson(baseUrl + '/api/notificacoes/marcar-lida', {
+      usuario_id: remetente.id,
+      notificacao_id: inbox.data[0].id,
+    }, remetente.token);
+    assert.equal(marcar.res.status, 200);
+
+    const total = await getJson(baseUrl + '/api/notificacoes/nao-lidas/total?usuario_id=' + remetente.id, remetente.token);
+    assert.equal(total.res.status, 200);
+    assert.equal(total.data.total, 0);
+  } finally {
+    stopServer(child);
+  }
+});

@@ -162,6 +162,10 @@ function desativarDispositivoPush(banco, token) {
     return true;
 }
 
+function buscarUsuarioPorId(banco, usuarioId) {
+    return banco.usuarios.find((usuario) => usuario.id === usuarioId && !usuario.deletado_em) || null;
+}
+
 function autenticarUsuarioPorToken(req, banco) {
     const token = req.header('x-filminho-token') || '';
     if (!token) return null;
@@ -471,6 +475,8 @@ app.delete('/api/usuarios/:id', (req, res) => {
     banco.avaliacoes = banco.avaliacoes.filter(a => a.id_usuario !== id);
     banco.solicitacoes_amizade = banco.solicitacoes_amizade.filter(s => s.de_id !== id && s.para_id !== id);
     banco.amizades = banco.amizades.filter(a => a.usuario_id !== id && a.amigo_id !== id);
+    banco.notificacoes = banco.notificacoes.filter(n => n.usuario_id !== id);
+    banco.dispositivos_push = banco.dispositivos_push.filter(d => d.usuario_id !== id);
 
     salvarBanco(banco);
     res.json({ ok: true });
@@ -484,6 +490,12 @@ app.post('/api/amigos/solicitar', (req, res) => {
     if (!de_id || !para_id) return res.status(400).json({ erro: 'Dados obrigatórios.' });
     if (de_id === para_id) return res.status(400).json({ erro: 'Não pode solicitar a si mesmo.' });
     const banco = lerBanco();
+    const remetente = buscarUsuarioPorId(banco, de_id);
+    const destino = buscarUsuarioPorId(banco, para_id);
+
+    if (!remetente || !destino) {
+        return res.status(404).json({ erro: 'Usuário não encontrado.' });
+    }
 
     const jaAmigos = banco.amizades.some(a => a.usuario_id === de_id && a.amigo_id === para_id);
     if (jaAmigos) return res.status(409).json({ erro: 'Já são amigos.' });
@@ -497,6 +509,18 @@ app.post('/api/amigos/solicitar', (req, res) => {
     const novaId = banco.solicitacoes_amizade.reduce((max, s) => Math.max(max, s.id || 0), 0) + 1;
     const solicitacao = { id: novaId, de_id, para_id, status: 'pendente', criado_em: new Date().toISOString() };
     banco.solicitacoes_amizade.push(solicitacao);
+    criarNotificacao(banco, {
+        usuario_id: destino.id,
+        tipo: 'amizade_solicitada',
+        titulo: 'Nova solicitação de amizade',
+        mensagem: `${remetente.nome} quer te adicionar no Filminho.`,
+        canal: 'push+inbox',
+        dados: {
+            de_id: remetente.id,
+            rota: 'notificacoes',
+            acao: 'abrir_solicitacoes',
+        },
+    });
     salvarBanco(banco);
     res.status(201).json(solicitacao);
 });
@@ -512,6 +536,23 @@ app.post('/api/amigos/aceitar', (req, res) => {
     const desde = new Date().toISOString();
     banco.amizades.push({ usuario_id: solicitacao.de_id, amigo_id: solicitacao.para_id, desde_em: desde });
     banco.amizades.push({ usuario_id: solicitacao.para_id, amigo_id: solicitacao.de_id, desde_em: desde });
+    const solicitante = buscarUsuarioPorId(banco, solicitacao.de_id);
+    const usuarioAceitou = buscarUsuarioPorId(banco, solicitacao.para_id);
+
+    if (solicitante && usuarioAceitou) {
+        criarNotificacao(banco, {
+            usuario_id: solicitante.id,
+            tipo: 'amizade_aceita',
+            titulo: 'Solicitação aceita',
+            mensagem: `${usuarioAceitou.nome} aceitou sua solicitação de amizade.`,
+            canal: 'push+inbox',
+            dados: {
+                amigo_id: usuarioAceitou.id,
+                rota: 'notificacoes',
+                acao: 'abrir_amigos',
+            },
+        });
+    }
 
     salvarBanco(banco);
     res.json({ ok: true });
