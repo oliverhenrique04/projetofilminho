@@ -22,7 +22,9 @@ if (!fs.existsSync(ARQUIVO_DB)) {
         usuarios: [],
         avaliacoes: [],
         solicitacoes_amizade: [],
-        amizades: []
+        amizades: [],
+        notificacoes: [],
+        dispositivos_push: []
     };
     fs.writeFileSync(ARQUIVO_DB, JSON.stringify(dadosIniciais, null, 2));
 }
@@ -85,6 +87,71 @@ function validarSenha(senha, hashArmazenado) {
     return crypto.timingSafeEqual(Buffer.from(parts[2], 'hex'), Buffer.from(derived, 'hex'));
 }
 
+function gerarNovoId(itens, campoId) {
+    return itens.reduce((max, item) => Math.max(max, item[campoId] || 0), 0) + 1;
+}
+
+function criarNotificacao(banco, notificacao) {
+    const novaNotificacao = {
+        id: gerarNovoId(banco.notificacoes, 'id'),
+        usuario_id: notificacao.usuario_id,
+        titulo: notificacao.titulo || '',
+        mensagem: notificacao.mensagem || '',
+        tipo: notificacao.tipo || 'geral',
+        lida: false,
+        criado_em: new Date().toISOString(),
+    };
+
+    banco.notificacoes.push(novaNotificacao);
+    return novaNotificacao;
+}
+
+function listarNotificacoesUsuario(banco, usuarioId) {
+    return banco.notificacoes
+        .filter((notificacao) => notificacao.usuario_id === usuarioId)
+        .sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
+}
+
+function contarNaoLidas(banco, usuarioId) {
+    return banco.notificacoes.filter((notificacao) => notificacao.usuario_id === usuarioId && !notificacao.lida).length;
+}
+
+function upsertDispositivoPush(banco, payload) {
+    const agora = new Date().toISOString();
+    const existente = banco.dispositivos_push.find((dispositivo) => dispositivo.token === payload.token);
+
+    if (existente) {
+        existente.usuario_id = payload.usuario_id;
+        existente.plataforma = payload.plataforma || existente.plataforma || 'web';
+        existente.ativo = true;
+        existente.atualizado_em = agora;
+        if (!existente.criado_em) existente.criado_em = agora;
+        return existente;
+    }
+
+    const novoDispositivo = {
+        id: gerarNovoId(banco.dispositivos_push, 'id'),
+        usuario_id: payload.usuario_id,
+        token: payload.token,
+        plataforma: payload.plataforma || 'web',
+        ativo: true,
+        criado_em: agora,
+        atualizado_em: agora,
+    };
+
+    banco.dispositivos_push.push(novoDispositivo);
+    return novoDispositivo;
+}
+
+function desativarDispositivoPush(banco, token) {
+    const dispositivo = banco.dispositivos_push.find((item) => item.token === token);
+    if (!dispositivo) return false;
+
+    dispositivo.ativo = false;
+    dispositivo.atualizado_em = new Date().toISOString();
+    return true;
+}
+
 function garantirEstruturaBanco() {
     const banco = lerBanco();
     let mudou = false;
@@ -93,6 +160,8 @@ function garantirEstruturaBanco() {
     if (!Array.isArray(banco.avaliacoes)) { banco.avaliacoes = []; mudou = true; }
     if (!Array.isArray(banco.solicitacoes_amizade)) { banco.solicitacoes_amizade = []; mudou = true; }
     if (!Array.isArray(banco.amizades)) { banco.amizades = []; mudou = true; }
+    if (!Array.isArray(banco.notificacoes)) { banco.notificacoes = []; mudou = true; }
+    if (!Array.isArray(banco.dispositivos_push)) { banco.dispositivos_push = []; mudou = true; }
 
     banco.usuarios.forEach((u) => {
         if (!u.nome_normalizado && u.nome) { u.nome_normalizado = normalizarNome(u.nome); mudou = true; }
@@ -110,6 +179,18 @@ function garantirEstruturaBanco() {
 
     banco.avaliacoes.forEach((a) => {
         if (!a.criado_em) { a.criado_em = new Date().toISOString(); mudou = true; }
+    });
+
+    banco.notificacoes.forEach((notificacao) => {
+        if (notificacao.lida === undefined) { notificacao.lida = false; mudou = true; }
+        if (!notificacao.criado_em) { notificacao.criado_em = new Date().toISOString(); mudou = true; }
+    });
+
+    banco.dispositivos_push.forEach((dispositivo) => {
+        if (dispositivo.ativo === undefined) { dispositivo.ativo = true; mudou = true; }
+        if (!dispositivo.plataforma) { dispositivo.plataforma = 'web'; mudou = true; }
+        if (!dispositivo.criado_em) { dispositivo.criado_em = new Date().toISOString(); mudou = true; }
+        if (!dispositivo.atualizado_em) { dispositivo.atualizado_em = dispositivo.criado_em; mudou = true; }
     });
 
     // Seed demo user
@@ -452,6 +533,77 @@ app.get('/api/amigos/:amigo_id/avaliacoes', (req, res) => {
 });
 
 // ====== FIM ROTAS DE AMIGOS ====
+
+// ====== ROTAS DE NOTIFICAÇÕES E PUSH ====
+app.get('/api/notificacoes', (req, res) => {
+    const usuarioId = parseInt(req.query.usuario_id || '0', 10);
+    const banco = lerBanco();
+    res.json(listarNotificacoesUsuario(banco, usuarioId));
+});
+
+app.get('/api/notificacoes/nao-lidas/total', (req, res) => {
+    const usuarioId = parseInt(req.query.usuario_id || '0', 10);
+    const banco = lerBanco();
+    res.json({ total: contarNaoLidas(banco, usuarioId) });
+});
+
+app.post('/api/notificacoes/marcar-lida', (req, res) => {
+    const notificacaoId = parseInt(req.body.notificacao_id || '0', 10);
+    const banco = lerBanco();
+    const notificacao = banco.notificacoes.find((item) => item.id === notificacaoId);
+
+    if (!notificacao) {
+        return res.status(404).json({ erro: 'Notificação não encontrada.' });
+    }
+
+    notificacao.lida = true;
+    salvarBanco(banco);
+    res.json({ ok: true });
+});
+
+app.post('/api/notificacoes/marcar-todas-lidas', (req, res) => {
+    const usuarioId = parseInt(req.body.usuario_id || '0', 10);
+    const banco = lerBanco();
+
+    banco.notificacoes.forEach((notificacao) => {
+        if (notificacao.usuario_id === usuarioId) {
+            notificacao.lida = true;
+        }
+    });
+
+    salvarBanco(banco);
+    res.json({ ok: true });
+});
+
+app.post('/api/push/register', (req, res) => {
+    const { usuario_id, token, plataforma } = req.body;
+    if (!usuario_id || !token) {
+        return res.status(400).json({ erro: 'Dados obrigatórios.' });
+    }
+
+    const banco = lerBanco();
+    const dispositivo = upsertDispositivoPush(banco, { usuario_id, token, plataforma });
+    salvarBanco(banco);
+    res.json({ ok: true, dispositivo });
+});
+
+app.post('/api/push/unregister', (req, res) => {
+    const { token } = req.body;
+    if (!token) {
+        return res.status(400).json({ erro: 'Token obrigatório.' });
+    }
+
+    const banco = lerBanco();
+    const desativado = desativarDispositivoPush(banco, token);
+
+    if (!desativado) {
+        return res.status(404).json({ erro: 'Dispositivo não encontrado.' });
+    }
+
+    salvarBanco(banco);
+    res.json({ ok: true });
+});
+// ====== FIM ROTAS DE NOTIFICAÇÕES E PUSH ====
 
 // ====== PROXIES DE APIs PÚBLICAS ====
 app.get('/api/cep/:cep', async (req, res) => {
