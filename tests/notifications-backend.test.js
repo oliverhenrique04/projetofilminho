@@ -4,6 +4,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { startServer, stopServer } = require('./helpers/test-server');
+let uniqueCounter = 0;
+
+function nextUnique(prefix) {
+  uniqueCounter += 1;
+  return prefix + '_' + process.pid + '_' + Date.now() + '_' + uniqueCounter;
+}
 
 async function postJson(url, body, token) {
   const res = await fetch(url, {
@@ -53,13 +59,13 @@ async function registrarUsuario(baseUrl, suffix) {
   return registro.data;
 }
 
-test('notification endpoints start empty for a new user', async () => {
+async function verificarNotificacoesIniciais() {
   const dbPath = path.join(os.tmpdir(), 'filminho-notifications-' + Date.now() + '.json');
-  const { child, baseUrl } = await startServer({ port: 3114, dbPath });
+  const { child, baseUrl } = await startServer({ port: 3124, dbPath });
 
   try {
-    const usuario = await registrarUsuario(baseUrl, 'notifications_' + Date.now());
-    const outroUsuario = await registrarUsuario(baseUrl, 'notifications_other_' + Date.now());
+    const usuario = await registrarUsuario(baseUrl, nextUnique('notifications'));
+    const outroUsuario = await registrarUsuario(baseUrl, nextUnique('notifications_other'));
 
     const perfil = await getJson(baseUrl + '/api/perfil/' + usuario.id);
     assert.equal(perfil.res.status, 200);
@@ -193,15 +199,15 @@ test('notification endpoints start empty for a new user', async () => {
   } finally {
     stopServer(child);
   }
-});
+}
 
-test('push registry upserts a token and unregister deactivates it', async () => {
+async function verificarRegistroPush() {
   const dbPath = path.join(os.tmpdir(), 'filminho-push-' + Date.now() + '.json');
-  const { child, baseUrl } = await startServer({ port: 3115, dbPath });
+  const { child, baseUrl } = await startServer({ port: 3125, dbPath });
 
   try {
-    const usuario = await registrarUsuario(baseUrl, 'push_' + Date.now());
-    const outroUsuario = await registrarUsuario(baseUrl, 'push_other_' + Date.now());
+    const usuario = await registrarUsuario(baseUrl, nextUnique('push'));
+    const outroUsuario = await registrarUsuario(baseUrl, nextUnique('push_other'));
 
     const semAuth = await postJson(baseUrl + '/api/push/register', {
       usuario_id: usuario.id,
@@ -289,15 +295,15 @@ test('push registry upserts a token and unregister deactivates it', async () => 
   } finally {
     stopServer(child);
   }
-});
+}
 
-test('friend request creates inbox notification for recipient', async () => {
+async function verificarNotificacaoSolicitacaoAmizade() {
   const dbPath = path.join(os.tmpdir(), 'filminho-friend-notif-' + Date.now() + '.json');
-  const { child, baseUrl } = await startServer({ port: 3116, dbPath });
+  const { child, baseUrl } = await startServer({ port: 3126, dbPath });
 
   try {
-    const remetente = await registrarUsuario(baseUrl, 'friend_request_a_' + Date.now());
-    const destino = await registrarUsuario(baseUrl, 'friend_request_b_' + Date.now());
+    const remetente = await registrarUsuario(baseUrl, nextUnique('friend_request_a'));
+    const destino = await registrarUsuario(baseUrl, nextUnique('friend_request_b'));
 
     const solicitacao = await postJson(baseUrl + '/api/amigos/solicitar', {
       de_id: remetente.id,
@@ -318,15 +324,15 @@ test('friend request creates inbox notification for recipient', async () => {
   } finally {
     stopServer(child);
   }
-});
+}
 
-test('friend accept creates notification for requester and read endpoints clear the badge', async () => {
+async function verificarNotificacaoAceiteAmizade() {
   const dbPath = path.join(os.tmpdir(), 'filminho-accept-notif-' + Date.now() + '.json');
-  const { child, baseUrl } = await startServer({ port: 3117, dbPath });
+  const { child, baseUrl } = await startServer({ port: 3127, dbPath });
 
   try {
-    const remetente = await registrarUsuario(baseUrl, 'friend_accept_a_' + Date.now());
-    const destino = await registrarUsuario(baseUrl, 'friend_accept_b_' + Date.now());
+    const remetente = await registrarUsuario(baseUrl, nextUnique('friend_accept_a'));
+    const destino = await registrarUsuario(baseUrl, nextUnique('friend_accept_b'));
 
     const solicitacao = await postJson(baseUrl + '/api/amigos/solicitar', {
       de_id: remetente.id,
@@ -357,4 +363,11 @@ test('friend accept creates notification for requester and read endpoints clear 
   } finally {
     stopServer(child);
   }
+}
+
+test('notifications backend flows', async (t) => {
+  await t.test('notification endpoints start empty for a new user', verificarNotificacoesIniciais);
+  await t.test('push registry upserts a token and unregister deactivates it', verificarRegistroPush);
+  await t.test('friend request creates inbox notification for recipient', verificarNotificacaoSolicitacaoAmizade);
+  await t.test('friend accept creates notification for requester and read endpoints clear the badge', verificarNotificacaoAceiteAmizade);
 });

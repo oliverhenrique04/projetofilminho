@@ -1,11 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="io.framework7.myapp" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
+<widget id="br.com.filminho.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
     <name>Filminho</name>
     <description>
-        A sample Apache Cordova application that responds to the deviceready event.
+        Aplicativo mobile do Filminho com diario de filmes, amigos e notificacoes.
     </description>
-    <author email="dev@cordova.apache.org" href="https://cordova.apache.org">
-        Apache Cordova Team
+    <author email="contato@filminho.app" href="https://filminho.app">
+        Equipe Filminho
     </author>
     <content src="index.html" />
     <allow-intent href="http://*/*" />
@@ -14,25 +14,20 @@
     <allow-navigation href="*" />
 
     <plugin name="cordova-plugin-geolocation" spec="^5.0.0" />
+    <plugin name="cordova-plugin-local-notification" spec="^1.2.3" />
 
     <platform name="android">
       <preference name="StatusBarOverlaysWebView" value="false" />
       <preference name="android-minSdkVersion" value="24" />
+      <preference name="AndroidLaunchMode" value="singleTask" />
+      <preference name="AndroidWindowSplashScreenAnimatedIcon" value="res/icon/android/mipmap-xxxhdpi/ic_launcher.png" />
       <preference name="SplashMaintainAspectRatio" value="true" />
       <config-file parent="/manifest" target="AndroidManifest.xml">
         <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
         <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+        <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+        <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
       </config-file>
-      <splash density="land-hdpi" src="res/screen/android/drawable-hdpi/screen.png" />
-      <splash density="land-mdpi" src="res/screen/android/drawable-mdpi/screen.png" />
-      <splash density="land-xhdpi" src="res/screen/android/drawable-xhdpi/screen.png" />
-      <splash density="land-xxhdpi" src="res/screen/android/drawable-xxhdpi/screen.png" />
-      <splash density="land-xxxhdpi" src="res/screen/android/drawable-xxxhdpi/screen.png" />
-      <splash density="port-hdpi" src="res/screen/android/drawable-hdpi/screen.png" />
-      <splash density="port-mdpi" src="res/screen/android/drawable-mdpi/screen.png" />
-      <splash density="port-xhdpi" src="res/screen/android/drawable-xhdpi/screen.png" />
-      <splash density="port-xxhdpi" src="res/screen/android/drawable-xxhdpi/screen.png" />
-      <splash density="port-xxxhdpi" src="res/screen/android/drawable-xxxhdpi/screen.png" />
       <icon density="ldpi" src="res/icon/android/mipmap-ldpi/ic_launcher.png" />
       <icon density="mdpi" src="res/icon/android/mipmap-mdpi/ic_launcher.png" />
       <icon density="hdpi" src="res/icon/android/mipmap-hdpi/ic_launcher.png" />
@@ -78,11 +73,12 @@
 
     <preference name="DisallowOverscroll" value="true" />
     <preference name="BackupWebStorage" value="local" />
-    <preference name="AutoHideSplashScreen" value="false" />
+    <preference name="AutoHideSplashScreen" value="true" />
     <preference name="ShowSplashScreenSpinner" value="false" />
-    <preference name="SplashScreenDelay" value="0" />
+    <preference name="SplashScreenDelay" value="1200" />
     <preference name="Suppresses3DTouchGesture" value="true" />
     <preference name="Allow3DTouchLinkPreview" value="false" />
     <preference name="CordovaWebViewEngine" value="CDVWKWebViewEngine" />
     <preference name="AllowInlineMediaPlayback" value="true" />
+    <preference name="AndroidInsecureFileModeEnabled" value="false" />
 </widget>

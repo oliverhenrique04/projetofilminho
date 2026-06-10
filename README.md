@@ -139,6 +139,25 @@ Abra no navegador:
 
 - http://localhost:3000
 
+## Notificações e APK Android
+
+- O app Android usa o package ID `br.com.filminho.app`.
+- A inbox interna e os lembretes locais funcionam sem Firebase.
+- Para push real via FCM, adicione `cordova-plugin-firebase-messaging`, coloque um `google-services.json` válido em `cordova/google-services.json` e siga [docs/firebase-setup.md](/home/mrosa/projetofilminho/docs/firebase-setup.md:1).
+- Para o backend enviar pushes, configure `GOOGLE_APPLICATION_CREDENTIALS` conforme [docs/firebase-setup.md](/home/mrosa/projetofilminho/docs/firebase-setup.md:1).
+
+### Gerar APK
+
+```bash
+npm install
+cd cordova && npm install && cd ..
+npm run build-cordova-android
+```
+
+APK esperado:
+
+- `cordova/platforms/android/app/build/outputs/apk/debug/app-debug.apk`
+
 ### 2) Execução com Cordova no navegador (fluxo acadêmico)
 
 Na raiz do projeto:

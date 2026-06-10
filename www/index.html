@@ -32,6 +32,24 @@
     }
 
     .toolbar-bottom { background-color: #121418 !important; border-top: 1px solid #1f2228; }
+    .tabbar-link-with-badge { position: relative; }
+    .notifications-badge {
+      position: absolute;
+      top: 4px;
+      right: 12px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: #ff5b5b;
+      color: #fff !important;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .notifications-badge.visible { display: inline-flex; }
     
     .chip-container { display: flex; overflow-x: auto; gap: 10px; padding: 15px; background: transparent; scrollbar-width: none; }
     .chip-categoria { background: #1f2228; color: #ffffff !important; padding: 8px 18px; border-radius: 20px; font-size: 14px; white-space: nowrap; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
@@ -84,6 +102,52 @@
     .rating-options { padding: 10px 0; }
     .rating-options .item-content { background: none; padding-left: 0; }
     .rating-options .item-inner { padding-right: 0; }
+
+    .app-hero {
+      margin: 15px;
+      padding: 18px;
+      border-radius: 20px;
+      background:
+        radial-gradient(circle at top right, rgba(0, 224, 84, 0.28), transparent 35%),
+        linear-gradient(135deg, #171a20 0%, #0d0f13 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+    }
+    .app-hero h1 { margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -0.04em; }
+    .app-hero p { margin: 8px 0 0 0; color: #c7d2cf !important; font-size: 14px; line-height: 1.5; }
+    .notifications-shell {
+      margin: 15px;
+      padding: 18px;
+      border-radius: 18px;
+      background: #15181d;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .notification-card {
+      background: linear-gradient(135deg, #1b1f26 0%, #12151a 100%);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 12px;
+      cursor: pointer;
+    }
+    .notification-card.unread {
+      border-color: rgba(0, 224, 84, 0.42);
+      box-shadow: 0 0 0 1px rgba(0, 224, 84, 0.12);
+    }
+    .notification-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .empty-state {
+      padding: 26px 18px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px dashed rgba(255, 255, 255, 0.12);
+      text-align: center;
+    }
 
     /* Estilos para telas maiores (web) */
     @media (min-width: 768px) {
@@ -232,6 +296,7 @@
         <div class="toolbar toolbar-bottom tabbar tabbar-icons">
           <div class="toolbar-inner">
             <a href="#tab-home" class="tab-link tab-link-active" onclick="mostrarInicioMenu()"><i class="icon material-icons">home</i><span class="tabbar-label">Início</span></a>
+            <a href="#tab-notificacoes" class="tab-link tabbar-link-with-badge"><i class="icon material-icons">notifications</i><span class="tabbar-label">Notificações</span><span id="notifications-badge" class="notifications-badge">0</span></a>
             <a href="#tab-perfil" class="tab-link"><i class="icon material-icons">person</i><span class="tabbar-label">Perfil</span></a>
           </div>
         </div>
@@ -239,6 +304,10 @@
         <div class="tabs">
           
           <div id="tab-home" class="page-content tab tab-active">
+            <div class="app-hero">
+              <h1>Seu clube de cinema cabe no bolso.</h1>
+              <p>Descubra filmes, acompanhe amizades e mantenha seu diario sempre vivo com notificacoes inteligentes.</p>
+            </div>
             
             <div class="home-searchbar">
               <i class="icon material-icons" style="color: #e2e8f0;">search</i>
@@ -280,6 +349,26 @@
                 <div class="block"><div id="lista-categoria" class="grid-categorias">Carregando...</div></div>
               </div>
 
+            </div>
+          </div>
+
+          <div id="tab-notificacoes" class="page-content tab">
+            <div class="notifications-shell">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;">
+                <div>
+                  <div class="block-title" style="margin:0;">🔔 Notificações</div>
+                  <p style="margin:6px 0 0 0; color:#aab5b2 !important;">Amizades, lembretes e atividade importante do app.</p>
+                </div>
+                <button id="mark-all-read-button" class="button button-outline" style="border-color:#00e054; color:#00e054;">Marcar tudo</button>
+              </div>
+
+              <div id="notifications-empty-state" class="empty-state">
+                <div style="font-size:32px; margin-bottom:8px;">🍿</div>
+                <div style="font-weight:800; margin-bottom:4px;">Tudo em dia por aqui</div>
+                <div style="color:#9aa5a1 !important;">Quando algo importante acontecer, vamos te avisar aqui.</div>
+              </div>
+
+              <div id="notifications-list"></div>
             </div>
           </div>
 

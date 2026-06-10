@@ -22,7 +22,7 @@ async function del(url) {
 
 test('deletes user and data (LGPD)', async () => {
   const dbPath = path.join(os.tmpdir(), 'filminho-lgpd-' + Date.now() + '.json');
-  const { child, baseUrl } = await startServer({ port: 3114, dbPath });
+  const { child, baseUrl } = await startServer({ port: 3128, dbPath });
   try {
     const reg = await postJson(baseUrl + '/api/auth/registro', {
       nome: 'maria_teste',

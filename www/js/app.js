@@ -15,6 +15,12 @@ var BASE_URL = (function() {
 var API_URL = BASE_URL + '/api';
 var filmeAbertoAgora = null;
 var amigoSelecionadoId = null;
+var estadoNotificacoes = {
+  itens: [],
+  naoLidas: 0,
+  pushInicializado: false
+};
+var TOKEN_PUSH_LOCAL = 'filminho_push_token';
 
 // Objeto para armazenar o estado da avaliação atual
 let avaliacaoAtual = {
@@ -26,6 +32,273 @@ let avaliacaoAtual = {
 
 if (!localStorage.getItem('nome_usuario_filminho')) {
   localStorage.setItem('nome_usuario_filminho', 'Oliver Henrique');
+}
+
+async function apiFetch(path, options) {
+  var controller = new AbortController();
+  var timeoutId = setTimeout(function() {
+    controller.abort();
+  }, 10000);
+
+  try {
+    var headers = Object.assign({}, (options && options.headers) || {});
+    var sessionToken = localStorage.getItem('filminho_user_token');
+    if (sessionToken) {
+      headers['x-filminho-token'] = sessionToken;
+    }
+    if (!headers['Content-Type'] && !(options && options.skipJsonContentType)) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    var response = await fetch(API_URL + path, Object.assign({}, options || {}, {
+      headers: headers,
+      signal: controller.signal
+    }));
+    var contentType = response.headers.get('content-type') || '';
+    var data = contentType.includes('application/json')
+      ? await response.json().catch(function() { return {}; })
+      : {};
+
+    if (!response.ok) {
+      var error = new Error((data && data.erro) || 'Falha na requisição.');
+      error.status = response.status;
+      error.payload = data;
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('A requisição demorou demais. Tente novamente.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function atualizarBadgeNotificacoes() {
+  var badge = document.getElementById('notifications-badge');
+  if (!badge) return;
+  badge.textContent = String(estadoNotificacoes.naoLidas);
+  badge.classList.toggle('visible', estadoNotificacoes.naoLidas > 0);
+}
+
+function formatarMomentoNotificacao(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function renderizarNotificacoes() {
+  var lista = document.getElementById('notifications-list');
+  var empty = document.getElementById('notifications-empty-state');
+  if (!lista || !empty) return;
+
+  if (!estadoNotificacoes.itens.length) {
+    lista.innerHTML = '';
+    empty.style.display = 'block';
+    atualizarBadgeNotificacoes();
+    return;
+  }
+
+  empty.style.display = 'none';
+  lista.innerHTML = estadoNotificacoes.itens.map(function(item) {
+    var classe = item.lida_em ? 'notification-card' : 'notification-card unread';
+    return '' +
+      '<div class="' + classe + '" onclick="abrirDestinoNotificacao(' + item.id + ')">' +
+        '<div class="notification-meta">' +
+          '<strong>' + item.titulo + '</strong>' +
+          '<span style="color:#93a19d !important;">' + formatarMomentoNotificacao(item.criado_em) + '</span>' +
+        '</div>' +
+        '<div style="color:#d6dedb !important; line-height:1.5;">' + item.mensagem + '</div>' +
+        '<div style="margin-top:10px; display:flex; justify-content:flex-end;">' +
+          (item.lida_em ? '' : '<button class="button button-small button-outline" onclick="marcarNotificacaoLida(event, ' + item.id + ')">Marcar como lida</button>') +
+        '</div>' +
+      '</div>';
+  }).join('');
+
+  atualizarBadgeNotificacoes();
+}
+
+async function carregarNotificacoes() {
+  if (!MEU_ID_USUARIO) return;
+
+  try {
+    estadoNotificacoes.itens = await apiFetch('/notificacoes?usuario_id=' + MEU_ID_USUARIO);
+    estadoNotificacoes.naoLidas = estadoNotificacoes.itens.filter(function(item) {
+      return !item.lida_em;
+    }).length;
+    renderizarNotificacoes();
+  } catch (error) {
+    console.warn('Erro ao carregar notificações:', error.message);
+  }
+}
+
+async function marcarNotificacaoLida(event, notificacaoId) {
+  if (event) event.stopPropagation();
+  await apiFetch('/notificacoes/marcar-lida', {
+    method: 'POST',
+    body: JSON.stringify({
+      usuario_id: MEU_ID_USUARIO,
+      notificacao_id: notificacaoId
+    })
+  });
+  await carregarNotificacoes();
+}
+
+async function marcarTodasNotificacoesLidas() {
+  await apiFetch('/notificacoes/marcar-todas-lidas', {
+    method: 'POST',
+    body: JSON.stringify({ usuario_id: MEU_ID_USUARIO })
+  });
+  await carregarNotificacoes();
+}
+
+function abrirDestinoNotificacao(notificacaoId) {
+  var item = estadoNotificacoes.itens.find(function(entry) {
+    return entry.id === notificacaoId;
+  });
+  if (!item) return;
+
+  if (!item.lida_em) {
+    marcarNotificacaoLida(null, item.id).catch(function(error) {
+      console.warn('Erro ao marcar notificação:', error.message);
+    });
+  }
+
+  if (item.dados && (item.dados.acao === 'abrir_solicitacoes' || item.dados.acao === 'abrir_amigos')) {
+    app.tab.show('#tab-perfil');
+    return;
+  }
+
+  app.tab.show('#tab-notificacoes');
+}
+
+function obterPluginFirebaseMessaging() {
+  return window.cordova &&
+    window.cordova.plugins &&
+    window.cordova.plugins.firebase &&
+    window.cordova.plugins.firebase.messaging
+    ? window.cordova.plugins.firebase.messaging
+    : null;
+}
+
+function obterPluginLocalNotifications() {
+  return window.cordova &&
+    window.cordova.plugins &&
+    window.cordova.plugins.notification &&
+    window.cordova.plugins.notification.local
+    ? window.cordova.plugins.notification.local
+    : null;
+}
+
+async function registrarTokenPush(token) {
+  if (!token || !MEU_ID_USUARIO) return;
+  await apiFetch('/push/register', {
+    method: 'POST',
+    body: JSON.stringify({
+      usuario_id: MEU_ID_USUARIO,
+      token: token,
+      platform: 'android',
+      device_label: 'android-cordova'
+    })
+  });
+  localStorage.setItem(TOKEN_PUSH_LOCAL, token);
+}
+
+async function desregistrarTokenPush() {
+  var token = localStorage.getItem(TOKEN_PUSH_LOCAL);
+  if (!token || !MEU_ID_USUARIO) return;
+
+  try {
+    await apiFetch('/push/unregister', {
+      method: 'POST',
+      body: JSON.stringify({ token: token })
+    });
+  } catch (error) {
+    console.warn('Erro ao desregistrar push:', error.message);
+  }
+}
+
+function agendarLembreteLocalAvaliacao(filme) {
+  var localNotifications = obterPluginLocalNotifications();
+  if (!localNotifications || !filme) return;
+
+  localNotifications.schedule({
+    id: Math.floor(Date.now() / 1000),
+    title: 'Continue seu diario no Filminho',
+    text: 'Quer registrar mais uma opiniao sobre ' + filme.title + '?',
+    trigger: { in: 2, unit: 'hour' },
+    androidChannelId: 'filminho-engajamento',
+    androidChannelName: 'Lembretes do Filminho',
+    smallIcon: 'res://ic_launcher',
+    data: { rota: 'perfil' }
+  });
+}
+
+async function inicializarNotificacoesDoDispositivo() {
+  if (!MEU_ID_USUARIO || estadoNotificacoes.pushInicializado) return;
+  estadoNotificacoes.pushInicializado = true;
+
+  var localNotifications = obterPluginLocalNotifications();
+  if (localNotifications) {
+    try {
+      localNotifications.requestPermission(function() {});
+      localNotifications.on('click', function() {
+        app.tab.show('#tab-perfil');
+      });
+    } catch (error) {
+      console.warn('Local notifications indisponíveis:', error.message || error);
+    }
+  }
+
+  var messaging = obterPluginFirebaseMessaging();
+  if (!messaging) return;
+
+  try {
+    await messaging.requestPermission({ forceShow: true });
+    var token = await messaging.getToken();
+    if (token) {
+      await registrarTokenPush(token);
+    }
+
+    messaging.onTokenRefresh(async function(nextToken) {
+      try {
+        await registrarTokenPush(nextToken);
+      } catch (error) {
+        console.warn('Erro ao atualizar token push:', error.message);
+      }
+    });
+
+    messaging.onMessage(async function() {
+      await carregarNotificacoes();
+    });
+
+    if (typeof messaging.onBackgroundMessage === 'function') {
+      messaging.onBackgroundMessage(async function() {
+        await carregarNotificacoes();
+      });
+    }
+  } catch (error) {
+    console.warn('Push não inicializado:', error.message || error);
+  }
+}
+
+async function carregarDadosIniciaisDoApp() {
+  if (!MEU_ID_USUARIO) return;
+  await Promise.allSettled([
+    carregarPerfil(),
+    carregarFilmesHome('tendencias', 'lista-tendencias'),
+    carregarSolicitacoes(),
+    carregarAmigos(),
+    carregarNotificacoes()
+  ]);
+  await inicializarNotificacoesDoDispositivo();
 }
 
 // ====== FUNÇÕES DE AUTENTICAÇÃO ====
@@ -52,8 +325,7 @@ function bindAuthTabs() {
 
 async function carregarUfs() {
   try {
-    const res = await fetch(API_URL + '/ibge/ufs');
-    const ufs = await res.json();
+    const ufs = await apiFetch('/ibge/ufs');
     const select = document.getElementById('cadastro-uf');
     select.innerHTML = ufs.map(u => '<option value="' + u.sigla + '">' + u.sigla + '</option>').join('');
   } catch (e) {
@@ -62,8 +334,7 @@ async function carregarUfs() {
 }
 
 async function buscarCep(cep) {
-  const res = await fetch(API_URL + '/cep/' + cep);
-  return res.json();
+  return apiFetch('/cep/' + cep, { skipJsonContentType: true });
 }
 
 async function handleLogin(ev) {
@@ -72,30 +343,22 @@ async function handleLogin(ev) {
   const senha = document.getElementById('login-senha').value;
   app.dialog.preloader('Entrando...');
   try {
-    const res = await fetch(API_URL + '/auth/login', {
+    const data = await apiFetch('/auth/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, senha })
     });
     app.dialog.close();
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      return app.dialog.alert(data.erro || 'Credenciais inválidas.');
-    }
-    const data = await res.json();
     localStorage.setItem('filminho_user_id', data.id);
     localStorage.setItem('filminho_user_nome', data.nome);
     localStorage.setItem('filminho_user_cidade', data.cidade || '');
     localStorage.setItem('filminho_user_uf', data.uf || '');
+    localStorage.setItem('filminho_user_token', data.token || '');
     MEU_ID_USUARIO = data.id;
     mostrarApp();
-    carregarPerfil();
-    carregarFilmesHome('tendencias', 'lista-tendencias');
-    carregarSolicitacoes();
-    carregarAmigos();
+    await carregarDadosIniciaisDoApp();
   } catch (e) {
     app.dialog.close();
-    app.dialog.alert('Erro ao conectar com o servidor.');
+    app.dialog.alert(e.message || 'Erro ao conectar com o servidor.');
   }
 }
 
@@ -113,37 +376,36 @@ async function handleCadastro(ev) {
 
   app.dialog.preloader('Criando conta...');
   try {
-    const res = await fetch(API_URL + '/auth/registro', {
+    const data = await apiFetch('/auth/registro', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nome, email, senha, cep, consentimento_lgpd: consent })
     });
     app.dialog.close();
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return app.dialog.alert(data.erro || 'Falha no cadastro.');
-
     localStorage.setItem('filminho_user_id', data.id);
     localStorage.setItem('filminho_user_nome', data.nome);
     localStorage.setItem('filminho_user_cidade', data.cidade || '');
     localStorage.setItem('filminho_user_uf', data.uf || '');
+    localStorage.setItem('filminho_user_token', data.token || '');
     MEU_ID_USUARIO = data.id;
     mostrarApp();
-    carregarPerfil();
-    carregarFilmesHome('tendencias', 'lista-tendencias');
-    carregarSolicitacoes();
-    carregarAmigos();
+    await carregarDadosIniciaisDoApp();
   } catch (e) {
     app.dialog.close();
-    app.dialog.alert('Erro ao conectar com o servidor.');
+    app.dialog.alert(e.message || 'Erro ao conectar com o servidor.');
   }
 }
 
-function logout() {
+async function logout() {
+  await desregistrarTokenPush();
   localStorage.removeItem('filminho_user_id');
   localStorage.removeItem('filminho_user_nome');
   localStorage.removeItem('filminho_user_cidade');
   localStorage.removeItem('filminho_user_uf');
+  localStorage.removeItem('filminho_user_token');
+  localStorage.removeItem(TOKEN_PUSH_LOCAL);
   MEU_ID_USUARIO = 0;
+  estadoNotificacoes = { itens: [], naoLidas: 0, pushInicializado: false };
+  atualizarBadgeNotificacoes();
   mostrarAuth();
 }
 
@@ -199,10 +461,9 @@ function initAuth() {
     mostrarAuth();
   } else {
     mostrarApp();
-    carregarPerfil();
-    carregarFilmesHome('tendencias', 'lista-tendencias');
-    carregarSolicitacoes();
-    carregarAmigos();
+    carregarDadosIniciaisDoApp().catch(function(error) {
+      console.warn('Erro no bootstrap do app:', error.message);
+    });
   }
 }
 
@@ -237,6 +498,7 @@ async function aceitarSolicitacao(id) {
     });
     carregarSolicitacoes();
     carregarAmigos();
+    carregarNotificacoes();
     app.toast.create({ text: 'Solicitação aceita!', closeTimeout: 2000, position: 'center' }).open();
   } catch (e) {
     app.dialog.alert('Erro ao aceitar solicitação.');
@@ -251,6 +513,7 @@ async function recusarSolicitacao(id) {
       body: JSON.stringify({ solicitacao_id: id, usuario_id: MEU_ID_USUARIO })
     });
     carregarSolicitacoes();
+    carregarNotificacoes();
     app.toast.create({ text: 'Solicitação recusada.', closeTimeout: 2000, position: 'center' }).open();
   } catch (e) {
     app.dialog.alert('Erro ao recusar solicitação.');
@@ -333,6 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
       amigoSelecionadoId = null;
       input.value = '';
       carregarSolicitacoes();
+      carregarNotificacoes();
       app.toast.create({ text: 'Solicitação enviada!', closeTimeout: 2000, position: 'center' }).open();
     } catch (e) {
       app.dialog.alert('Erro ao enviar solicitação.');
@@ -669,8 +933,10 @@ async function salvarAvaliacaoFinal() {
     app.dialog.close();
     fecharPopupAvaliacao();
     app.popup.close('#popup-detalhes');
+    agendarLembreteLocalAvaliacao(filmeAbertoAgora);
     app.toast.create({ text: 'Filme salvo no seu diário!', closeTimeout: 2000, position: 'center' }).open();
     carregarPerfil();
+    carregarNotificacoes();
   } catch (e) {
     app.dialog.close();
     app.dialog.alert('Ocorreu um erro ao salvar sua avaliação.');
@@ -887,7 +1153,15 @@ document.addEventListener('DOMContentLoaded', function() {
   var btnSalvar = document.getElementById('btn-salvar-edit-perfil');
   var btnCancelar = document.getElementById('btn-cancelar-edit-perfil');
   var btnFechar = document.getElementById('btn-fechar-edit-perfil');
+  var markAllButton = document.getElementById('mark-all-read-button');
   if (btnSalvar) btnSalvar.addEventListener('click', salvarEditarPerfil);
   if (btnCancelar) btnCancelar.addEventListener('click', fecharEditarPerfil);
   if (btnFechar) btnFechar.addEventListener('click', fecharEditarPerfil);
+  if (markAllButton) {
+    markAllButton.addEventListener('click', function() {
+      marcarTodasNotificacoesLidas().catch(function(error) {
+        app.dialog.alert(error.message || 'Nao foi possivel atualizar notificações.');
+      });
+    });
+  }
 });
