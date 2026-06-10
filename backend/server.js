@@ -584,8 +584,22 @@ app.post('/api/notificacoes/marcar-lida', (req, res) => {
 });
 
 app.post('/api/notificacoes/marcar-todas-lidas', (req, res) => {
-    const usuarioId = parseInt(req.body.usuario_id || '0', 10);
     const banco = lerBanco();
+    const usuarioId = Number(req.body.usuario_id);
+    const solicitanteId = Number(req.body.solicitante_id);
+
+    if (!Number.isInteger(usuarioId) || usuarioId <= 0 || !Number.isInteger(solicitanteId) || solicitanteId <= 0) {
+        return res.status(400).json({ erro: 'Dados obrigatórios.' });
+    }
+
+    const solicitanteExiste = banco.usuarios.some((usuario) => usuario.id === solicitanteId && !usuario.deletado_em);
+    if (!solicitanteExiste) {
+        return res.status(400).json({ erro: 'Usuário inválido.' });
+    }
+
+    if (usuarioId !== solicitanteId) {
+        return res.status(403).json({ erro: 'Não autorizado.' });
+    }
 
     banco.notificacoes.forEach((notificacao) => {
         if (notificacao.usuario_id === usuarioId) {

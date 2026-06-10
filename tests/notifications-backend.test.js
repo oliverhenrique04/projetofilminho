@@ -97,6 +97,7 @@ test('notification endpoints start empty for a new user', async () => {
 
     const marcarTodas = await postJson(baseUrl + '/api/notificacoes/marcar-todas-lidas', {
       usuario_id: usuario.id,
+      solicitante_id: usuario.id,
     });
     assert.equal(marcarTodas.res.status, 200);
 
@@ -126,6 +127,29 @@ test('notification endpoints start empty for a new user', async () => {
 
     const aposTentativaInvalida = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
     assert.equal(aposTentativaInvalida.notificacoes[2].lida_em, null);
+
+    aposTentativaInvalida.notificacoes.push({
+      id: 4,
+      usuario_id: usuario.id,
+      titulo: 'Nao pode marcar tudo',
+      mensagem: 'Outro usuario nao pode marcar em lote',
+      tipo: 'geral',
+      canal: 'in_app',
+      dados: {},
+      lida: false,
+      lida_em: null,
+      criado_em: '2026-06-10T00:00:03.000Z',
+    });
+    fs.writeFileSync(dbPath, JSON.stringify(aposTentativaInvalida, null, 2));
+
+    const tentativaMarcarTodasOutroUsuario = await postJson(baseUrl + '/api/notificacoes/marcar-todas-lidas', {
+      usuario_id: usuario.id,
+      solicitante_id: outroUsuario.id,
+    });
+    assert.equal(tentativaMarcarTodasOutroUsuario.res.status, 403);
+
+    const aposTentativaMarcarTodas = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+    assert.equal(aposTentativaMarcarTodas.notificacoes[3].lida_em, null);
   } finally {
     stopServer(child);
   }
