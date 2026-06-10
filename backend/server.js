@@ -561,11 +561,20 @@ app.get('/api/notificacoes/nao-lidas/total', (req, res) => {
 
 app.post('/api/notificacoes/marcar-lida', (req, res) => {
     const notificacaoId = parseInt(req.body.notificacao_id || '0', 10);
+    const usuarioId = parseInt(req.body.usuario_id || '0', 10);
+    if (!usuarioId || !notificacaoId) {
+        return res.status(400).json({ erro: 'Dados obrigatórios.' });
+    }
+
     const banco = lerBanco();
     const notificacao = banco.notificacoes.find((item) => item.id === notificacaoId);
 
     if (!notificacao) {
         return res.status(404).json({ erro: 'Notificação não encontrada.' });
+    }
+
+    if (notificacao.usuario_id !== usuarioId) {
+        return res.status(403).json({ erro: 'Não autorizado.' });
     }
 
     notificacao.lida = true;
@@ -591,12 +600,18 @@ app.post('/api/notificacoes/marcar-todas-lidas', (req, res) => {
 
 app.post('/api/push/register', (req, res) => {
     const { usuario_id, token, platform, device_label } = req.body;
-    if (!usuario_id || !token) {
+    const usuarioId = Number(usuario_id);
+    if (!token || !Number.isInteger(usuarioId) || usuarioId <= 0) {
         return res.status(400).json({ erro: 'Dados obrigatórios.' });
     }
 
     const banco = lerBanco();
-    const dispositivo = upsertDispositivoPush(banco, { usuario_id, token, platform, device_label });
+    const usuarioExiste = banco.usuarios.some((usuario) => usuario.id === usuarioId && !usuario.deletado_em);
+    if (!usuarioExiste) {
+        return res.status(400).json({ erro: 'Usuário inválido.' });
+    }
+
+    const dispositivo = upsertDispositivoPush(banco, { usuario_id: usuarioId, token, platform, device_label });
     salvarBanco(banco);
     res.json({ ok: true, dispositivo });
 });

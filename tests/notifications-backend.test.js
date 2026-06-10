@@ -40,6 +40,7 @@ test('notification endpoints start empty for a new user', async () => {
 
   try {
     const usuario = await registrarUsuario(baseUrl, 'notifications_' + Date.now());
+    const outroUsuario = await registrarUsuario(baseUrl, 'notifications_other_' + Date.now());
 
     const notificacoes = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + usuario.id);
     assert.equal(notificacoes.res.status, 200);
@@ -73,6 +74,7 @@ test('notification endpoints start empty for a new user', async () => {
 
     const marcarUma = await postJson(baseUrl + '/api/notificacoes/marcar-lida', {
       notificacao_id: 1,
+      usuario_id: usuario.id,
     });
     assert.equal(marcarUma.res.status, 200);
 
@@ -101,6 +103,29 @@ test('notification endpoints start empty for a new user', async () => {
     const aposMarcarTodas = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
     assert.equal(typeof aposMarcarTodas.notificacoes[0].lida_em, 'string');
     assert.equal(typeof aposMarcarTodas.notificacoes[1].lida_em, 'string');
+
+    aposMarcarTodas.notificacoes.push({
+      id: 3,
+      usuario_id: usuario.id,
+      titulo: 'Privada',
+      mensagem: 'Nao pode ser lida por outro usuario',
+      tipo: 'geral',
+      canal: 'in_app',
+      dados: {},
+      lida: false,
+      lida_em: null,
+      criado_em: '2026-06-10T00:00:02.000Z',
+    });
+    fs.writeFileSync(dbPath, JSON.stringify(aposMarcarTodas, null, 2));
+
+    const tentativaCruzarUsuarios = await postJson(baseUrl + '/api/notificacoes/marcar-lida', {
+      notificacao_id: 3,
+      usuario_id: outroUsuario.id,
+    });
+    assert.equal(tentativaCruzarUsuarios.res.status, 403);
+
+    const aposTentativaInvalida = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+    assert.equal(aposTentativaInvalida.notificacoes[2].lida_em, null);
   } finally {
     stopServer(child);
   }
@@ -145,6 +170,22 @@ test('push registry upserts a token and unregister deactivates it', async () => 
     const depoisDoUnregister = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
     assert.equal(depoisDoUnregister.dispositivos_push.length, 1);
     assert.equal(depoisDoUnregister.dispositivos_push[0].ativo, false);
+
+    const usuarioInexistente = await postJson(baseUrl + '/api/push/register', {
+      usuario_id: 9999,
+      token: 'token-9999',
+      platform: 'web',
+      device_label: 'Ghost browser',
+    });
+    assert.equal(usuarioInexistente.res.status, 400);
+
+    const usuarioInvalido = await postJson(baseUrl + '/api/push/register', {
+      usuario_id: 'abc',
+      token: 'token-abc-invalid',
+      platform: 'web',
+      device_label: 'Broken browser',
+    });
+    assert.equal(usuarioInvalido.res.status, 400);
   } finally {
     stopServer(child);
   }
