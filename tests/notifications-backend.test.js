@@ -48,6 +48,10 @@ test('notification endpoints start empty for a new user', async () => {
     const usuario = await registrarUsuario(baseUrl, 'notifications_' + Date.now());
     const outroUsuario = await registrarUsuario(baseUrl, 'notifications_other_' + Date.now());
 
+    const perfil = await getJson(baseUrl + '/api/perfil/' + usuario.id);
+    assert.equal(perfil.res.status, 200);
+    assert.equal(perfil.data.perfil.token, undefined);
+
     const notificacoes = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + usuario.id, usuario.token);
     assert.equal(notificacoes.res.status, 200);
     assert.deepEqual(notificacoes.data, []);
@@ -171,13 +175,22 @@ test('push registry upserts a token and unregister deactivates it', async () => 
 
   try {
     const usuario = await registrarUsuario(baseUrl, 'push_' + Date.now());
+    const outroUsuario = await registrarUsuario(baseUrl, 'push_other_' + Date.now());
+
+    const semAuth = await postJson(baseUrl + '/api/push/register', {
+      usuario_id: usuario.id,
+      token: 'token-no-auth',
+      platform: 'web',
+      device_label: 'No auth browser',
+    });
+    assert.equal(semAuth.res.status, 401);
 
     const primeiroRegistro = await postJson(baseUrl + '/api/push/register', {
       usuario_id: usuario.id,
       token: 'token-abc',
       platform: 'web',
       device_label: 'Chrome desktop',
-    });
+    }, usuario.token);
     assert.equal(primeiroRegistro.res.status, 200);
 
     const segundoRegistro = await postJson(baseUrl + '/api/push/register', {
@@ -185,8 +198,16 @@ test('push registry upserts a token and unregister deactivates it', async () => 
       token: 'token-abc',
       platform: 'web',
       device_label: 'Chrome desktop',
-    });
+    }, usuario.token);
     assert.equal(segundoRegistro.res.status, 200);
+
+    const cruzadoRegistro = await postJson(baseUrl + '/api/push/register', {
+      usuario_id: usuario.id,
+      token: 'token-cross-user',
+      platform: 'web',
+      device_label: 'Wrong owner browser',
+    }, outroUsuario.token);
+    assert.equal(cruzadoRegistro.res.status, 403);
 
     const depoisDoRegistro = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
     assert.equal(depoisDoRegistro.dispositivos_push.length, 1);
@@ -198,19 +219,38 @@ test('push registry upserts a token and unregister deactivates it', async () => 
 
     const unregister = await postJson(baseUrl + '/api/push/unregister', {
       token: 'token-abc',
-    });
+    }, usuario.token);
     assert.equal(unregister.res.status, 200);
 
+    const semAuthUnregister = await postJson(baseUrl + '/api/push/unregister', {
+      token: 'token-abc',
+    });
+    assert.equal(semAuthUnregister.res.status, 401);
+
+    const terceiroRegistro = await postJson(baseUrl + '/api/push/register', {
+      usuario_id: usuario.id,
+      token: 'token-owned',
+      platform: 'web',
+      device_label: 'Owned browser',
+    }, usuario.token);
+    assert.equal(terceiroRegistro.res.status, 200);
+
+    const cruzadoUnregister = await postJson(baseUrl + '/api/push/unregister', {
+      token: 'token-owned',
+    }, outroUsuario.token);
+    assert.equal(cruzadoUnregister.res.status, 403);
+
     const depoisDoUnregister = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
-    assert.equal(depoisDoUnregister.dispositivos_push.length, 1);
+    assert.equal(depoisDoUnregister.dispositivos_push.length, 2);
     assert.equal(depoisDoUnregister.dispositivos_push[0].ativo, false);
+    assert.equal(depoisDoUnregister.dispositivos_push[1].ativo, true);
 
     const usuarioInexistente = await postJson(baseUrl + '/api/push/register', {
       usuario_id: 9999,
       token: 'token-9999',
       platform: 'web',
       device_label: 'Ghost browser',
-    });
+    }, usuario.token);
     assert.equal(usuarioInexistente.res.status, 400);
 
     const usuarioInvalido = await postJson(baseUrl + '/api/push/register', {
@@ -218,7 +258,7 @@ test('push registry upserts a token and unregister deactivates it', async () => 
       token: 'token-abc-invalid',
       platform: 'web',
       device_label: 'Broken browser',
-    });
+    }, usuario.token);
     assert.equal(usuarioInvalido.res.status, 400);
   } finally {
     stopServer(child);

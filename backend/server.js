@@ -168,6 +168,12 @@ function autenticarUsuarioPorToken(req, banco) {
     return banco.usuarios.find((usuario) => usuario.token === token && !usuario.deletado_em) || null;
 }
 
+function serializarUsuarioPublico(usuario) {
+    if (!usuario) return null;
+    const { token, senha_hash, senha_salt, ...usuarioPublico } = usuario;
+    return usuarioPublico;
+}
+
 function garantirEstruturaBanco() {
     const banco = lerBanco();
     let mudou = false;
@@ -343,7 +349,7 @@ app.get('/api/perfil/:id_usuario', (req, res) => {
     if (!usuario) {
         return res.status(404).json({ erro: 'Usuário não encontrado' });
     }
-    res.json({ perfil: usuario, avaliacoes: filmesAvaliados });
+    res.json({ perfil: serializarUsuarioPublico(usuario), avaliacoes: filmesAvaliados });
 });
 
 app.put('/api/perfil/:id_usuario', (req, res) => {
@@ -640,10 +646,13 @@ app.post('/api/push/register', (req, res) => {
     }
 
     const banco = lerBanco();
+    const usuarioAutenticado = autenticarUsuarioPorToken(req, banco);
+    if (!usuarioAutenticado) return res.status(401).json({ erro: 'Não autenticado.' });
     const usuarioExiste = banco.usuarios.some((usuario) => usuario.id === usuarioId && !usuario.deletado_em);
     if (!usuarioExiste) {
         return res.status(400).json({ erro: 'Usuário inválido.' });
     }
+    if (usuarioAutenticado.id !== usuarioId) return res.status(403).json({ erro: 'Não autorizado.' });
 
     const dispositivo = upsertDispositivoPush(banco, { usuario_id: usuarioId, token, platform, device_label });
     salvarBanco(banco);
@@ -657,6 +666,17 @@ app.post('/api/push/unregister', (req, res) => {
     }
 
     const banco = lerBanco();
+    const usuarioAutenticado = autenticarUsuarioPorToken(req, banco);
+    if (!usuarioAutenticado) return res.status(401).json({ erro: 'Não autenticado.' });
+
+    const dispositivo = banco.dispositivos_push.find((item) => item.token === token);
+    if (!dispositivo) {
+        return res.status(404).json({ erro: 'Dispositivo não encontrado.' });
+    }
+    if (dispositivo.usuario_id !== usuarioAutenticado.id) {
+        return res.status(403).json({ erro: 'Não autorizado.' });
+    }
+
     const desativado = desativarDispositivoPush(banco, token);
 
     if (!desativado) {
