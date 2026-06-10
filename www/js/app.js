@@ -1,7 +1,18 @@
 var app = new Framework7({ el: '#app', theme: 'auto' });
 
 var MEU_ID_USUARIO = Number(localStorage.getItem('filminho_user_id') || 0);
-var API_URL = '/api';
+
+// Detecta se está rodando atrás do proxy do code-server e ajusta a URL base
+var BASE_URL = (function() {
+  var path = window.location.pathname;
+  // Se o pathname contiver /proxy/ (code-server), usa o path base completo
+  var proxyMatch = path.match(/^(\/vscode\/proxy\/\d+)/);
+  if (proxyMatch) {
+    return proxyMatch[1];
+  }
+  return '';
+})();
+var API_URL = BASE_URL + '/api';
 var filmeAbertoAgora = null;
 var amigoSelecionadoId = null;
 

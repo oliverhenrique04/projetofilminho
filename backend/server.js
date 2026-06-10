@@ -282,8 +282,18 @@ app.post('/api/auth/registro', async (req, res) => {
         const cepLimpo = String(cep).replace(/\D/g, '');
         if (cepLimpo.length !== 8) return res.status(400).json({ erro: 'CEP inválido.' });
 
-        const viaCep = await axios.get(`https://viacep.com.br/ws/${cepLimpo}/json/`);
-        if (viaCep.data.erro) return res.status(400).json({ erro: 'CEP não encontrado.' });
+        let cidade = '';
+        let uf = '';
+
+        try {
+            const viaCep = await axios.get(`https://viacep.com.br/ws/${cepLimpo}/json/`, { timeout: 5000 });
+            if (!viaCep.data.erro) {
+                cidade = viaCep.data.localidade || '';
+                uf = viaCep.data.uf || '';
+            }
+        } catch (cepErr) {
+            console.warn('ViaCEP indisponível, cadastro seguirá sem dados de cidade/UF automáticos.');
+        }
 
         const novoId = banco.usuarios.reduce((max, u) => Math.max(max, u.id), 0) + 1;
         const salt = gerarSalt();
@@ -295,8 +305,8 @@ app.post('/api/auth/registro', async (req, res) => {
             senha_hash: hashSenha(senha, salt),
             senha_salt: salt,
             cep: cepLimpo,
-            cidade: viaCep.data.localidade,
-            uf: viaCep.data.uf,
+            cidade,
+            uf,
             consentimento_lgpd: true,
             consentimento_em: new Date().toISOString(),
             criado_em: new Date().toISOString(),
@@ -447,10 +457,14 @@ app.get('/api/amigos/:amigo_id/avaliacoes', (req, res) => {
 app.get('/api/cep/:cep', async (req, res) => {
     try {
         const cepLimpo = String(req.params.cep || '').replace(/\D/g, '');
-        const resposta = await axios.get(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+        const resposta = await axios.get(`https://viacep.com.br/ws/${cepLimpo}/json/`, { timeout: 5000 });
+        if (resposta.data.erro) {
+            return res.json({ erro: 'CEP não encontrado.' });
+        }
         res.json(resposta.data);
     } catch (e) {
-        res.status(500).json({ erro: 'Erro ao consultar CEP.' });
+        console.error('Erro ao consultar ViaCEP:', e.message);
+        res.json({ erro: 'Serviço de CEP temporariamente indisponível. Digite manualmente.' });
     }
 });
 
