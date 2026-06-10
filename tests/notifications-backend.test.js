@@ -5,18 +5,23 @@ const os = require('node:os');
 const path = require('node:path');
 const { startServer, stopServer } = require('./helpers/test-server');
 
-async function postJson(url, body) {
+async function postJson(url, body, token) {
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'x-filminho-token': token } : {}),
+    },
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   return { res, data };
 }
 
-async function getJson(url) {
-  const res = await fetch(url);
+async function getJson(url, token) {
+  const res = await fetch(url, {
+    headers: token ? { 'x-filminho-token': token } : {},
+  });
   const data = await res.json().catch(() => ({}));
   return { res, data };
 }
@@ -31,6 +36,7 @@ async function registrarUsuario(baseUrl, suffix) {
   });
 
   assert.equal(registro.res.status, 201);
+  assert.equal(typeof registro.data.token, 'string');
   return registro.data;
 }
 
@@ -42,11 +48,11 @@ test('notification endpoints start empty for a new user', async () => {
     const usuario = await registrarUsuario(baseUrl, 'notifications_' + Date.now());
     const outroUsuario = await registrarUsuario(baseUrl, 'notifications_other_' + Date.now());
 
-    const notificacoes = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + usuario.id);
+    const notificacoes = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + usuario.id, usuario.token);
     assert.equal(notificacoes.res.status, 200);
     assert.deepEqual(notificacoes.data, []);
 
-    const total = await getJson(baseUrl + '/api/notificacoes/nao-lidas/total?usuario_id=' + usuario.id);
+    const total = await getJson(baseUrl + '/api/notificacoes/nao-lidas/total?usuario_id=' + usuario.id, usuario.token);
     assert.equal(total.res.status, 200);
     assert.deepEqual(total.data, { total: 0 });
 
@@ -65,7 +71,7 @@ test('notification endpoints start empty for a new user', async () => {
     });
     fs.writeFileSync(dbPath, JSON.stringify(seedData, null, 2));
 
-    const listarComNotificacao = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + usuario.id);
+    const listarComNotificacao = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + usuario.id, usuario.token);
     assert.equal(listarComNotificacao.res.status, 200);
     assert.equal(listarComNotificacao.data.length, 1);
     assert.deepEqual(listarComNotificacao.data[0].dados, { solicitacao_id: 55 });
@@ -75,7 +81,7 @@ test('notification endpoints start empty for a new user', async () => {
     const marcarUma = await postJson(baseUrl + '/api/notificacoes/marcar-lida', {
       notificacao_id: 1,
       usuario_id: usuario.id,
-    });
+    }, usuario.token);
     assert.equal(marcarUma.res.status, 200);
 
     const aposMarcarUma = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
@@ -97,8 +103,7 @@ test('notification endpoints start empty for a new user', async () => {
 
     const marcarTodas = await postJson(baseUrl + '/api/notificacoes/marcar-todas-lidas', {
       usuario_id: usuario.id,
-      solicitante_id: usuario.id,
-    });
+    }, usuario.token);
     assert.equal(marcarTodas.res.status, 200);
 
     const aposMarcarTodas = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
@@ -121,8 +126,8 @@ test('notification endpoints start empty for a new user', async () => {
 
     const tentativaCruzarUsuarios = await postJson(baseUrl + '/api/notificacoes/marcar-lida', {
       notificacao_id: 3,
-      usuario_id: outroUsuario.id,
-    });
+      usuario_id: usuario.id,
+    }, outroUsuario.token);
     assert.equal(tentativaCruzarUsuarios.res.status, 403);
 
     const aposTentativaInvalida = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
@@ -144,12 +149,17 @@ test('notification endpoints start empty for a new user', async () => {
 
     const tentativaMarcarTodasOutroUsuario = await postJson(baseUrl + '/api/notificacoes/marcar-todas-lidas', {
       usuario_id: usuario.id,
-      solicitante_id: outroUsuario.id,
-    });
+    }, outroUsuario.token);
     assert.equal(tentativaMarcarTodasOutroUsuario.res.status, 403);
 
     const aposTentativaMarcarTodas = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
     assert.equal(aposTentativaMarcarTodas.notificacoes[3].lida_em, null);
+
+    const leituraCruzarUsuarios = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + usuario.id, outroUsuario.token);
+    assert.equal(leituraCruzarUsuarios.res.status, 403);
+
+    const totalCruzarUsuarios = await getJson(baseUrl + '/api/notificacoes/nao-lidas/total?usuario_id=' + usuario.id, outroUsuario.token);
+    assert.equal(totalCruzarUsuarios.res.status, 403);
   } finally {
     stopServer(child);
   }

@@ -74,6 +74,10 @@ function gerarSalt() {
     return crypto.randomBytes(16).toString('hex');
 }
 
+function gerarTokenSessao() {
+    return crypto.randomBytes(24).toString('hex');
+}
+
 function hashSenha(senha, salt) {
     const derived = crypto.scryptSync(senha, salt, 64);
     return `scrypt$${salt}$${derived.toString('hex')}`;
@@ -158,6 +162,12 @@ function desativarDispositivoPush(banco, token) {
     return true;
 }
 
+function autenticarUsuarioPorToken(req, banco) {
+    const token = req.header('x-filminho-token') || '';
+    if (!token) return null;
+    return banco.usuarios.find((usuario) => usuario.token === token && !usuario.deletado_em) || null;
+}
+
 function garantirEstruturaBanco() {
     const banco = lerBanco();
     let mudou = false;
@@ -181,6 +191,7 @@ function garantirEstruturaBanco() {
         if (u.cep === undefined) { u.cep = ''; mudou = true; }
         if (u.cidade === undefined) { u.cidade = ''; mudou = true; }
         if (u.uf === undefined) { u.uf = ''; mudou = true; }
+        if (u.token === undefined) { u.token = ''; mudou = true; }
     });
 
     banco.avaliacoes.forEach((a) => {
@@ -223,6 +234,7 @@ function garantirEstruturaBanco() {
             criado_em: new Date().toISOString(),
             deletado_em: null,
             tipo: 'demo',
+            token: '',
         });
         mudou = true;
         console.log('MIGRAÇÃO: Usuário demo (id 1) criado.');
@@ -390,6 +402,7 @@ app.post('/api/auth/registro', async (req, res) => {
 
         const novoId = banco.usuarios.reduce((max, u) => Math.max(max, u.id), 0) + 1;
         const salt = gerarSalt();
+        const token = gerarTokenSessao();
         const novoUsuario = {
             id: novoId,
             nome,
@@ -405,11 +418,12 @@ app.post('/api/auth/registro', async (req, res) => {
             criado_em: new Date().toISOString(),
             deletado_em: null,
             tipo: 'user',
+            token,
         };
 
         banco.usuarios.push(novoUsuario);
         salvarBanco(banco);
-        res.status(201).json({ id: novoUsuario.id, nome: novoUsuario.nome, email: novoUsuario.email, cidade: novoUsuario.cidade, uf: novoUsuario.uf });
+        res.status(201).json({ id: novoUsuario.id, nome: novoUsuario.nome, email: novoUsuario.email, cidade: novoUsuario.cidade, uf: novoUsuario.uf, token: novoUsuario.token });
     } catch (err) {
         console.error('Erro no registro:', err);
         res.status(500).json({ erro: 'Erro ao registrar usuário.' });
@@ -423,7 +437,9 @@ app.post('/api/auth/login', (req, res) => {
     const usuario = banco.usuarios.find(u => u.email === email && !u.deletado_em);
     if (!usuario) return res.status(401).json({ erro: 'Credenciais inválidas.' });
     if (!validarSenha(senha, usuario.senha_hash)) return res.status(401).json({ erro: 'Credenciais inválidas.' });
-    res.json({ id: usuario.id, nome: usuario.nome, email: usuario.email, cidade: usuario.cidade, uf: usuario.uf });
+    usuario.token = gerarTokenSessao();
+    salvarBanco(banco);
+    res.json({ id: usuario.id, nome: usuario.nome, email: usuario.email, cidade: usuario.cidade, uf: usuario.uf, token: usuario.token });
 });
 
 // ====== FIM ROTAS DE AUTENTICAÇÃO ====
@@ -550,12 +566,20 @@ app.get('/api/amigos/:amigo_id/avaliacoes', (req, res) => {
 app.get('/api/notificacoes', (req, res) => {
     const usuarioId = parseInt(req.query.usuario_id || '0', 10);
     const banco = lerBanco();
+    const usuarioAutenticado = autenticarUsuarioPorToken(req, banco);
+    if (!usuarioAutenticado) return res.status(401).json({ erro: 'Não autenticado.' });
+    if (!usuarioId) return res.status(400).json({ erro: 'Dados obrigatórios.' });
+    if (usuarioAutenticado.id !== usuarioId) return res.status(403).json({ erro: 'Não autorizado.' });
     res.json(listarNotificacoesUsuario(banco, usuarioId));
 });
 
 app.get('/api/notificacoes/nao-lidas/total', (req, res) => {
     const usuarioId = parseInt(req.query.usuario_id || '0', 10);
     const banco = lerBanco();
+    const usuarioAutenticado = autenticarUsuarioPorToken(req, banco);
+    if (!usuarioAutenticado) return res.status(401).json({ erro: 'Não autenticado.' });
+    if (!usuarioId) return res.status(400).json({ erro: 'Dados obrigatórios.' });
+    if (usuarioAutenticado.id !== usuarioId) return res.status(403).json({ erro: 'Não autorizado.' });
     res.json({ total: contarNaoLidas(banco, usuarioId) });
 });
 
@@ -567,6 +591,9 @@ app.post('/api/notificacoes/marcar-lida', (req, res) => {
     }
 
     const banco = lerBanco();
+    const usuarioAutenticado = autenticarUsuarioPorToken(req, banco);
+    if (!usuarioAutenticado) return res.status(401).json({ erro: 'Não autenticado.' });
+    if (usuarioAutenticado.id !== usuarioId) return res.status(403).json({ erro: 'Não autorizado.' });
     const notificacao = banco.notificacoes.find((item) => item.id === notificacaoId);
 
     if (!notificacao) {
@@ -584,22 +611,15 @@ app.post('/api/notificacoes/marcar-lida', (req, res) => {
 });
 
 app.post('/api/notificacoes/marcar-todas-lidas', (req, res) => {
-    const banco = lerBanco();
     const usuarioId = Number(req.body.usuario_id);
-    const solicitanteId = Number(req.body.solicitante_id);
-
-    if (!Number.isInteger(usuarioId) || usuarioId <= 0 || !Number.isInteger(solicitanteId) || solicitanteId <= 0) {
+    if (!Number.isInteger(usuarioId) || usuarioId <= 0) {
         return res.status(400).json({ erro: 'Dados obrigatórios.' });
     }
 
-    const solicitanteExiste = banco.usuarios.some((usuario) => usuario.id === solicitanteId && !usuario.deletado_em);
-    if (!solicitanteExiste) {
-        return res.status(400).json({ erro: 'Usuário inválido.' });
-    }
-
-    if (usuarioId !== solicitanteId) {
-        return res.status(403).json({ erro: 'Não autorizado.' });
-    }
+    const banco = lerBanco();
+    const usuarioAutenticado = autenticarUsuarioPorToken(req, banco);
+    if (!usuarioAutenticado) return res.status(401).json({ erro: 'Não autenticado.' });
+    if (usuarioAutenticado.id !== usuarioId) return res.status(403).json({ erro: 'Não autorizado.' });
 
     banco.notificacoes.forEach((notificacao) => {
         if (notificacao.usuario_id === usuarioId) {
