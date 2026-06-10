@@ -4,8 +4,10 @@ const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { createPushClient } = require('./firebase-admin');
 
 const app = express();
+const pushClient = createPushClient();
 app.use(cors());
 
 app.use(express.json({ limit: '50mb' }));
@@ -176,6 +178,21 @@ function serializarUsuarioPublico(usuario) {
     if (!usuario) return null;
     const { token, senha_hash, senha_salt, ...usuarioPublico } = usuario;
     return usuarioPublico;
+}
+
+async function enviarPushParaUsuario(banco, usuarioId, notificacao) {
+    const tokens = banco.dispositivos_push
+        .filter((dispositivo) => dispositivo.usuario_id === usuarioId && dispositivo.ativo)
+        .map((dispositivo) => dispositivo.token);
+
+    return pushClient.sendToTokens({
+        tokens,
+        notification: {
+            title: notificacao.titulo,
+            body: notificacao.mensagem,
+        },
+        data: notificacao.dados || {},
+    });
 }
 
 function garantirEstruturaBanco() {
@@ -485,7 +502,7 @@ app.delete('/api/usuarios/:id', (req, res) => {
 // ====== FIM ROTAS DE USUÁRIOS ====
 
 // ====== ROTAS DE AMIGOS ====
-app.post('/api/amigos/solicitar', (req, res) => {
+app.post('/api/amigos/solicitar', async (req, res) => {
     const { de_id, para_id } = req.body;
     if (!de_id || !para_id) return res.status(400).json({ erro: 'Dados obrigatórios.' });
     if (de_id === para_id) return res.status(400).json({ erro: 'Não pode solicitar a si mesmo.' });
@@ -509,7 +526,7 @@ app.post('/api/amigos/solicitar', (req, res) => {
     const novaId = banco.solicitacoes_amizade.reduce((max, s) => Math.max(max, s.id || 0), 0) + 1;
     const solicitacao = { id: novaId, de_id, para_id, status: 'pendente', criado_em: new Date().toISOString() };
     banco.solicitacoes_amizade.push(solicitacao);
-    criarNotificacao(banco, {
+    const notificacao = criarNotificacao(banco, {
         usuario_id: destino.id,
         tipo: 'amizade_solicitada',
         titulo: 'Nova solicitação de amizade',
@@ -522,10 +539,11 @@ app.post('/api/amigos/solicitar', (req, res) => {
         },
     });
     salvarBanco(banco);
+    await enviarPushParaUsuario(banco, destino.id, notificacao);
     res.status(201).json(solicitacao);
 });
 
-app.post('/api/amigos/aceitar', (req, res) => {
+app.post('/api/amigos/aceitar', async (req, res) => {
     const { solicitacao_id, usuario_id } = req.body;
     const banco = lerBanco();
     const solicitacao = banco.solicitacoes_amizade.find(s => s.id === solicitacao_id);
@@ -538,9 +556,10 @@ app.post('/api/amigos/aceitar', (req, res) => {
     banco.amizades.push({ usuario_id: solicitacao.para_id, amigo_id: solicitacao.de_id, desde_em: desde });
     const solicitante = buscarUsuarioPorId(banco, solicitacao.de_id);
     const usuarioAceitou = buscarUsuarioPorId(banco, solicitacao.para_id);
+    let notificacao = null;
 
     if (solicitante && usuarioAceitou) {
-        criarNotificacao(banco, {
+        notificacao = criarNotificacao(banco, {
             usuario_id: solicitante.id,
             tipo: 'amizade_aceita',
             titulo: 'Solicitação aceita',
@@ -555,6 +574,9 @@ app.post('/api/amigos/aceitar', (req, res) => {
     }
 
     salvarBanco(banco);
+    if (notificacao) {
+        await enviarPushParaUsuario(banco, solicitante.id, notificacao);
+    }
     res.json({ ok: true });
 });
 
