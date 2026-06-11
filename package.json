@@ -9,11 +9,13 @@
     "start": "concurrently \"npm:serve-backend\" \"npm:serve-frontend\"",
     "serve-frontend": "http-server ./www/ -o -c 1 -a localhost -p 8080",
     "serve-backend": "node backend/server.js",
-    "build-cordova": "node ./build/build.mjs && cd cordova && cordova build",
-    "build-cordova-ios": "node ./build/build.mjs && cd cordova && cordova build ios",
-    "cordova-ios": "node ./build/build.mjs && cd cordova && cordova run ios",
-    "build-cordova-android": "node ./build/build.mjs && cd cordova && cordova build android",
-    "cordova-android": "node ./build/build.mjs && cd cordova && cordova run android",
+    "build-cordova": "node ./build/build.mjs && cd cordova && npx cordova build",
+    "build-cordova-ios": "node ./build/build.mjs && cd cordova && npx cordova build ios",
+    "cordova-ios": "node ./build/build.mjs && cd cordova && npx cordova run ios",
+    "build-cordova-android": "bash ./scripts/build-cordova-android.sh",
+    "cordova-android": "bash ./scripts/build-cordova-android.sh && cd cordova && npx cordova run android",
+    "test": "node --test --test-concurrency=1",
+    "test:apis": "node scripts/test-public-apis.js",
     "postinstall": "cpy --flat ./node_modules/framework7-icons/fonts/*.* ./www/fonts/ && cpy --flat ./node_modules/material-icons/iconfont/*.* ./www/fonts/ && cpy --flat ./node_modules/framework7/*.js ./www/framework7 && cpy --flat ./node_modules/framework7/*.css ./www/framework7 && cpy --flat ./node_modules/framework7/*.map ./www/framework7"
   },
   "browserslist": [
@@ -28,7 +30,9 @@
     "cordova-plugin-geolocation": "^5.0.0",
     "cors": "^2.8.6",
     "dom7": "^4.0.6",
+    "dotenv": "^16.6.1",
     "express": "^5.2.1",
+    "firebase-admin": "^13.10.0",
     "framework7": "^9.0.3",
     "framework7-icons": "^5.0.5",
     "material-icons": "^1.13.14",
@@ -37,10 +41,11 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "cordova": "^12.0.0",
+    "cordova": "^13.0.0",
     "cpy": "^13.2.1",
     "cpy-cli": "^7.0.0",
     "http-server": "^14.1.1",
+    "jsdom": "^24.0.0",
     "rimraf": "^6.1.3"
   }
 }

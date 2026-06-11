@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log*
+.git
+.gitignore
+cordova
+tests
+docs
+.agents
+.env
+.env.example
+README.md

@@ -3,19 +3,210 @@
   height: 100vh;
 }
 
-/* Your app custom styles here */
+/* App custom styles */
 
-/* Make text on green buttons more visible */
+/* Green button text contrast */
 .button.color-green, .button-fill.color-green {
-  color: #000; /* Black text for better contrast on green background */
+  color: #000;
 }
 
-/* Make the photo browser close button more visible */
+/* Photo browser */
 .photo-browser-close {
-  color: white !important; /* Force the color to be white */
-  opacity: 1 !important; /* Ensure it's fully opaque */
+  color: white !important;
+  opacity: 1 !important;
 }
 
 .photo-browser-toolbar .toolbar-inner a {
-    color: white; /* Make toolbar links white */
+    color: white;
+}
+
+/* Smooth scroll behavior */
+.page-content {
+  scroll-behavior: smooth;
+}
+
+/* Card hover effects for web */
+@media (hover: hover) {
+  .poster-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .poster-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.9);
+  }
+  .chip-categoria {
+    transition: all 0.2s ease;
+  }
+  .chip-categoria:hover:not(.active) {
+    border-color: rgba(0, 224, 84, 0.4);
+  }
+  .friend-item {
+    transition: padding-left 0.2s ease;
+  }
+  .friend-item:hover {
+    padding-left: 6px;
+  }
+  .notification-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .notification-card:hover {
+    transform: translateX(2px);
+    box-shadow: 0 2px 12px rgba(0,224,84,0.08);
+  }
+}
+
+/* Loading skeleton animation */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #1a1c23 25%, #242730 50%, #1a1c23 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+.skeleton-poster {
+  width: 110px;
+  height: 165px;
+  background: linear-gradient(90deg, #1a1c23 25%, #242730 50%, #1a1c23 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+/* Star rating animation */
+.star {
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.star:hover {
+  transform: scale(1.15);
+}
+
+/* Toast enhancement */
+.toast {
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+}
+
+/* Auth screen animation */
+.auth-card {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Popup close button enhancement */
+.popup-close i.material-icons {
+  font-size: 22px;
+}
+
+/* Friend request item enhancement */
+.friend-request-item {
+  transition: background 0.15s ease;
+}
+.friend-request-item:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+/* Notification badge pulse */
+@keyframes pulse-badge {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.notifications-badge.visible {
+  animation: pulse-badge 2s ease-in-out infinite;
+}
+
+/* ====== LAYOUT MOBILE-FIRST ====== */
+
+/* Profile grid - desktop 2 columns */
+.profile-grid {
+  display: block;
+}
+
+/* Home sections */
+.sessao-grid {
+  display: block;
+}
+
+/* Sortear filme card */
+.card-sortear {
+  background: linear-gradient(135deg, #00e054, #008f36);
+  border-radius: 12px;
+  padding: 15px;
+  text-align: center;
+  color: #000;
+  box-shadow: 0 4px 15px rgba(0,224,84,0.2);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-sortear:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,224,84,0.3);
+}
+.card-sortear:active {
+  transform: translateY(0);
+}
+
+/* Search results */
+.search-result-card {
+  background: #1a1c23;
+  border: none;
+  cursor: pointer;
+  margin: 10px 0;
+  border-radius: 12px;
+  transition: background 0.15s ease;
+}
+.search-result-card:hover {
+  background: #242730;
+}
+
+/* Perfil header desktop */
+@media (min-width: 768px) {
+  .profile-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+    padding: 0 15px 20px;
+  }
+  .profile-header {
+    max-width: 500px;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+  .profile-grid > div {
+    margin: 0 !important;
+  }
+  .profile-grid #friends-section {
+    margin: 0 !important;
+  }
+}
+
+/* Ajustes mobile */
+@media (max-width: 480px) {
+  .profile-header {
+    margin: 10px !important;
+    padding: 16px !important;
+  }
+  .profile-header img {
+    width: 80px !important;
+    height: 80px !important;
+  }
+  .profile-header h2 {
+    font-size: 18px !important;
+  }
 }

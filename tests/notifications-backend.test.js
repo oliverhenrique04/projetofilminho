@@ -1,0 +1,373 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { startServer, stopServer } = require('./helpers/test-server');
+let uniqueCounter = 0;
+
+function nextUnique(prefix) {
+  uniqueCounter += 1;
+  return prefix + '_' + process.pid + '_' + Date.now() + '_' + uniqueCounter;
+}
+
+async function postJson(url, body, token) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'x-filminho-token': token } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { res, data };
+}
+
+async function getJson(url, token) {
+  const res = await fetch(url, {
+    headers: token ? { 'x-filminho-token': token } : {},
+  });
+  const data = await res.json().catch(() => ({}));
+  return { res, data };
+}
+
+async function putJson(url, body, token) {
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'x-filminho-token': token } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { res, data };
+}
+
+async function registrarUsuario(baseUrl, suffix) {
+  const registro = await postJson(baseUrl + '/api/auth/registro', {
+    nome: 'notif_user_' + suffix,
+    email: 'notif_' + suffix + '@test.com',
+    senha: '123456',
+    cep: '01001000',
+    consentimento_lgpd: true,
+  });
+
+  assert.equal(registro.res.status, 201);
+  assert.equal(typeof registro.data.token, 'string');
+  return registro.data;
+}
+
+async function verificarNotificacoesIniciais() {
+  const dbPath = path.join(os.tmpdir(), 'filminho-notifications-' + Date.now() + '.json');
+  const { child, baseUrl } = await startServer({ port: 3124, dbPath });
+
+  try {
+    const usuario = await registrarUsuario(baseUrl, nextUnique('notifications'));
+    const outroUsuario = await registrarUsuario(baseUrl, nextUnique('notifications_other'));
+
+    const perfil = await getJson(baseUrl + '/api/perfil/' + usuario.id);
+    assert.equal(perfil.res.status, 200);
+    assert.equal(perfil.data.perfil.token, undefined);
+    assert.equal(perfil.data.perfil.senha_hash, undefined);
+    assert.equal(perfil.data.perfil.senha_salt, undefined);
+
+    const perfilAtualizado = await putJson(baseUrl + '/api/perfil/' + usuario.id, {
+      cidade: 'Sao Paulo',
+      uf: 'SP',
+    });
+    assert.equal(perfilAtualizado.res.status, 200);
+    assert.equal(perfilAtualizado.data.token, undefined);
+    assert.equal(perfilAtualizado.data.senha_hash, undefined);
+    assert.equal(perfilAtualizado.data.senha_salt, undefined);
+    assert.equal(perfilAtualizado.data.cidade, 'Sao Paulo');
+    assert.equal(perfilAtualizado.data.uf, 'SP');
+
+    const notificacoes = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + usuario.id, usuario.token);
+    assert.equal(notificacoes.res.status, 200);
+    assert.deepEqual(notificacoes.data, []);
+
+    const total = await getJson(baseUrl + '/api/notificacoes/nao-lidas/total?usuario_id=' + usuario.id, usuario.token);
+    assert.equal(total.res.status, 200);
+    assert.deepEqual(total.data, { total: 0 });
+
+    const seedData = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+    seedData.notificacoes.push({
+      id: 1,
+      usuario_id: usuario.id,
+      titulo: 'Novo convite',
+      mensagem: 'Voce recebeu um convite',
+      tipo: 'amizade',
+      canal: 'in_app',
+      dados: { solicitacao_id: 55 },
+      lida: false,
+      lida_em: null,
+      criado_em: '2026-06-10T00:00:00.000Z',
+    });
+    fs.writeFileSync(dbPath, JSON.stringify(seedData, null, 2));
+
+    const listarComNotificacao = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + usuario.id, usuario.token);
+    assert.equal(listarComNotificacao.res.status, 200);
+    assert.equal(listarComNotificacao.data.length, 1);
+    assert.deepEqual(listarComNotificacao.data[0].dados, { solicitacao_id: 55 });
+    assert.equal(listarComNotificacao.data[0].canal, 'in_app');
+    assert.equal(listarComNotificacao.data[0].lida_em, null);
+
+    const marcarUma = await postJson(baseUrl + '/api/notificacoes/marcar-lida', {
+      notificacao_id: 1,
+      usuario_id: usuario.id,
+    }, usuario.token);
+    assert.equal(marcarUma.res.status, 200);
+
+    const aposMarcarUma = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+    assert.equal(typeof aposMarcarUma.notificacoes[0].lida_em, 'string');
+
+    aposMarcarUma.notificacoes.push({
+      id: 2,
+      usuario_id: usuario.id,
+      titulo: 'Outro aviso',
+      mensagem: 'Outra mensagem',
+      tipo: 'geral',
+      canal: 'push',
+      dados: {},
+      lida: false,
+      lida_em: null,
+      criado_em: '2026-06-10T00:00:01.000Z',
+    });
+    fs.writeFileSync(dbPath, JSON.stringify(aposMarcarUma, null, 2));
+
+    const marcarTodas = await postJson(baseUrl + '/api/notificacoes/marcar-todas-lidas', {
+      usuario_id: usuario.id,
+    }, usuario.token);
+    assert.equal(marcarTodas.res.status, 200);
+
+    const aposMarcarTodas = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+    assert.equal(typeof aposMarcarTodas.notificacoes[0].lida_em, 'string');
+    assert.equal(typeof aposMarcarTodas.notificacoes[1].lida_em, 'string');
+
+    aposMarcarTodas.notificacoes.push({
+      id: 3,
+      usuario_id: usuario.id,
+      titulo: 'Privada',
+      mensagem: 'Nao pode ser lida por outro usuario',
+      tipo: 'geral',
+      canal: 'in_app',
+      dados: {},
+      lida: false,
+      lida_em: null,
+      criado_em: '2026-06-10T00:00:02.000Z',
+    });
+    fs.writeFileSync(dbPath, JSON.stringify(aposMarcarTodas, null, 2));
+
+    const tentativaCruzarUsuarios = await postJson(baseUrl + '/api/notificacoes/marcar-lida', {
+      notificacao_id: 3,
+      usuario_id: usuario.id,
+    }, outroUsuario.token);
+    assert.equal(tentativaCruzarUsuarios.res.status, 403);
+
+    const aposTentativaInvalida = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+    assert.equal(aposTentativaInvalida.notificacoes[2].lida_em, null);
+
+    aposTentativaInvalida.notificacoes.push({
+      id: 4,
+      usuario_id: usuario.id,
+      titulo: 'Nao pode marcar tudo',
+      mensagem: 'Outro usuario nao pode marcar em lote',
+      tipo: 'geral',
+      canal: 'in_app',
+      dados: {},
+      lida: false,
+      lida_em: null,
+      criado_em: '2026-06-10T00:00:03.000Z',
+    });
+    fs.writeFileSync(dbPath, JSON.stringify(aposTentativaInvalida, null, 2));
+
+    const tentativaMarcarTodasOutroUsuario = await postJson(baseUrl + '/api/notificacoes/marcar-todas-lidas', {
+      usuario_id: usuario.id,
+    }, outroUsuario.token);
+    assert.equal(tentativaMarcarTodasOutroUsuario.res.status, 403);
+
+    const aposTentativaMarcarTodas = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+    assert.equal(aposTentativaMarcarTodas.notificacoes[3].lida_em, null);
+
+    const leituraCruzarUsuarios = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + usuario.id, outroUsuario.token);
+    assert.equal(leituraCruzarUsuarios.res.status, 403);
+
+    const totalCruzarUsuarios = await getJson(baseUrl + '/api/notificacoes/nao-lidas/total?usuario_id=' + usuario.id, outroUsuario.token);
+    assert.equal(totalCruzarUsuarios.res.status, 403);
+  } finally {
+    stopServer(child);
+  }
+}
+
+async function verificarRegistroPush() {
+  const dbPath = path.join(os.tmpdir(), 'filminho-push-' + Date.now() + '.json');
+  const { child, baseUrl } = await startServer({ port: 3125, dbPath });
+
+  try {
+    const usuario = await registrarUsuario(baseUrl, nextUnique('push'));
+    const outroUsuario = await registrarUsuario(baseUrl, nextUnique('push_other'));
+
+    const semAuth = await postJson(baseUrl + '/api/push/register', {
+      usuario_id: usuario.id,
+      token: 'token-no-auth',
+      platform: 'web',
+      device_label: 'No auth browser',
+    });
+    assert.equal(semAuth.res.status, 401);
+
+    const primeiroRegistro = await postJson(baseUrl + '/api/push/register', {
+      usuario_id: usuario.id,
+      token: 'token-abc',
+      platform: 'web',
+      device_label: 'Chrome desktop',
+    }, usuario.token);
+    assert.equal(primeiroRegistro.res.status, 200);
+
+    const segundoRegistro = await postJson(baseUrl + '/api/push/register', {
+      usuario_id: usuario.id,
+      token: 'token-abc',
+      platform: 'web',
+      device_label: 'Chrome desktop',
+    }, usuario.token);
+    assert.equal(segundoRegistro.res.status, 200);
+
+    const cruzadoRegistro = await postJson(baseUrl + '/api/push/register', {
+      usuario_id: usuario.id,
+      token: 'token-cross-user',
+      platform: 'web',
+      device_label: 'Wrong owner browser',
+    }, outroUsuario.token);
+    assert.equal(cruzadoRegistro.res.status, 403);
+
+    const depoisDoRegistro = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+    assert.equal(depoisDoRegistro.dispositivos_push.length, 1);
+    assert.equal(depoisDoRegistro.dispositivos_push[0].usuario_id, usuario.id);
+    assert.equal(depoisDoRegistro.dispositivos_push[0].token, 'token-abc');
+    assert.equal(depoisDoRegistro.dispositivos_push[0].platform, 'web');
+    assert.equal(depoisDoRegistro.dispositivos_push[0].device_label, 'Chrome desktop');
+    assert.equal(depoisDoRegistro.dispositivos_push[0].ativo, true);
+
+    const unregister = await postJson(baseUrl + '/api/push/unregister', {
+      token: 'token-abc',
+    }, usuario.token);
+    assert.equal(unregister.res.status, 200);
+
+    const semAuthUnregister = await postJson(baseUrl + '/api/push/unregister', {
+      token: 'token-abc',
+    });
+    assert.equal(semAuthUnregister.res.status, 401);
+
+    const terceiroRegistro = await postJson(baseUrl + '/api/push/register', {
+      usuario_id: usuario.id,
+      token: 'token-owned',
+      platform: 'web',
+      device_label: 'Owned browser',
+    }, usuario.token);
+    assert.equal(terceiroRegistro.res.status, 200);
+
+    const cruzadoUnregister = await postJson(baseUrl + '/api/push/unregister', {
+      token: 'token-owned',
+    }, outroUsuario.token);
+    assert.equal(cruzadoUnregister.res.status, 403);
+
+    const depoisDoUnregister = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+    assert.equal(depoisDoUnregister.dispositivos_push.length, 2);
+    assert.equal(depoisDoUnregister.dispositivos_push[0].ativo, false);
+    assert.equal(depoisDoUnregister.dispositivos_push[1].ativo, true);
+
+    const usuarioInexistente = await postJson(baseUrl + '/api/push/register', {
+      usuario_id: 9999,
+      token: 'token-9999',
+      platform: 'web',
+      device_label: 'Ghost browser',
+    }, usuario.token);
+    assert.equal(usuarioInexistente.res.status, 400);
+
+    const usuarioInvalido = await postJson(baseUrl + '/api/push/register', {
+      usuario_id: 'abc',
+      token: 'token-abc-invalid',
+      platform: 'web',
+      device_label: 'Broken browser',
+    }, usuario.token);
+    assert.equal(usuarioInvalido.res.status, 400);
+  } finally {
+    stopServer(child);
+  }
+}
+
+async function verificarNotificacaoSolicitacaoAmizade() {
+  const dbPath = path.join(os.tmpdir(), 'filminho-friend-notif-' + Date.now() + '.json');
+  const { child, baseUrl } = await startServer({ port: 3126, dbPath });
+
+  try {
+    const remetente = await registrarUsuario(baseUrl, nextUnique('friend_request_a'));
+    const destino = await registrarUsuario(baseUrl, nextUnique('friend_request_b'));
+
+    const solicitacao = await postJson(baseUrl + '/api/amigos/solicitar', {
+      de_id: remetente.id,
+      para_id: destino.id,
+    });
+    assert.equal(solicitacao.res.status, 201);
+
+    const inbox = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + destino.id, destino.token);
+    const total = await getJson(baseUrl + '/api/notificacoes/nao-lidas/total?usuario_id=' + destino.id, destino.token);
+
+    assert.equal(inbox.res.status, 200);
+    assert.equal(inbox.data.length, 1);
+    assert.equal(inbox.data[0].tipo, 'amizade_solicitada');
+    assert.match(inbox.data[0].mensagem, /friend_request_a_/);
+    assert.equal(inbox.data[0].dados.de_id, remetente.id);
+    assert.equal(total.res.status, 200);
+    assert.equal(total.data.total, 1);
+  } finally {
+    stopServer(child);
+  }
+}
+
+async function verificarNotificacaoAceiteAmizade() {
+  const dbPath = path.join(os.tmpdir(), 'filminho-accept-notif-' + Date.now() + '.json');
+  const { child, baseUrl } = await startServer({ port: 3127, dbPath });
+
+  try {
+    const remetente = await registrarUsuario(baseUrl, nextUnique('friend_accept_a'));
+    const destino = await registrarUsuario(baseUrl, nextUnique('friend_accept_b'));
+
+    const solicitacao = await postJson(baseUrl + '/api/amigos/solicitar', {
+      de_id: remetente.id,
+      para_id: destino.id,
+    });
+    assert.equal(solicitacao.res.status, 201);
+
+    const aceitar = await postJson(baseUrl + '/api/amigos/aceitar', {
+      solicitacao_id: solicitacao.data.id,
+      usuario_id: destino.id,
+    });
+    assert.equal(aceitar.res.status, 200);
+
+    const inbox = await getJson(baseUrl + '/api/notificacoes?usuario_id=' + remetente.id, remetente.token);
+    assert.equal(inbox.res.status, 200);
+    assert.equal(inbox.data[0].tipo, 'amizade_aceita');
+    assert.equal(inbox.data[0].dados.amigo_id, destino.id);
+
+    const marcar = await postJson(baseUrl + '/api/notificacoes/marcar-lida', {
+      usuario_id: remetente.id,
+      notificacao_id: inbox.data[0].id,
+    }, remetente.token);
+    assert.equal(marcar.res.status, 200);
+
+    const total = await getJson(baseUrl + '/api/notificacoes/nao-lidas/total?usuario_id=' + remetente.id, remetente.token);
+    assert.equal(total.res.status, 200);
+    assert.equal(total.data.total, 0);
+  } finally {
+    stopServer(child);
+  }
+}
+
+test('notifications backend flows', async (t) => {
+  await t.test('notification endpoints start empty for a new user', verificarNotificacoesIniciais);
+  await t.test('push registry upserts a token and unregister deactivates it', verificarRegistroPush);
+  await t.test('friend request creates inbox notification for recipient', verificarNotificacaoSolicitacaoAmizade);
+  await t.test('friend accept creates notification for requester and read endpoints clear the badge', verificarNotificacaoAceiteAmizade);
+});

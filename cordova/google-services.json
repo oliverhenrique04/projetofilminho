@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "223722045916",
+    "project_id": "filminho-4dadc",
+    "storage_bucket": "filminho-4dadc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:223722045916:android:edbff5f923bb2e837c8f19",
+        "android_client_info": {
+          "package_name": "br.com.filminho.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCrkaR1Os1tvI4C4g-wG3JJCdLW4xh7Ag"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

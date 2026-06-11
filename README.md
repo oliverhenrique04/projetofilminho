@@ -14,6 +14,10 @@ O Filminho permite explorar filmes populares, pesquisar títulos, visualizar det
 - Frontend em Framework7 (interface responsiva com foco em mobile)
 - Backend Node.js + Express (API própria e integração com TMDb)
 - Persistência local de dados de perfil e avaliações
+- Autenticação por email e senha com hash seguro (scrypt)
+- Cadastro com CEP (ViaCEP) e lista de estados (IBGE)
+- Sistema de amigos com solicitações (enviar/aceitar/recusar)
+- Conformidade LGPD: consentimento obrigatório e exclusão de conta/dados
 
 ## Tecnologias utilizadas
 
@@ -26,10 +30,23 @@ O Filminho permite explorar filmes populares, pesquisar títulos, visualizar det
 - Express.js
 - Axios
 - TMDb API
-- localStorage (nome de usuário)
-- JSON local em `backend/banco_filminho.json` (perfil e avaliações)
+- ViaCEP (CEP -> cidade/UF)
+- IBGE (lista de estados, catalogada no dados.gov.br)
+- crypto.scrypt (hash de senhas)
+- localStorage (sessão e nome de usuário)
+- JSON local em `backend/banco_filminho.json` (perfil, avaliações, amigos)
 
 ## Funcionalidades implementadas
+
+### Autenticação
+
+- Tela de login/cadastro antes do app
+- Login com email e senha
+- Cadastro com nome único, email, senha (mín. 6 caracteres), CEP, cidade/UF auto
+- Consentimento LGPD obrigatório no cadastro
+- Usuário demo: `admin@email` / `123456`
+- Logout no perfil
+- Exclusão de conta e dados (LGPD)
 
 ### Catálogo e descoberta
 
@@ -58,8 +75,16 @@ O Filminho permite explorar filmes populares, pesquisar títulos, visualizar det
 ### Perfil
 
 - Exibição de avatar dinâmico e nome do usuário
+- Cidade/UF exibida no perfil
 - Edição do nome do perfil
 - Carrossel de filmes recentes avaliados
+
+### Amigos
+
+- Busca por nome com autocomplete (tipo Instagram)
+- Envio de solicitação de amizade
+- Aceitar/recusar solicitações recebidas
+- Lista de amigos com acesso às avaliações (título, poster, nota, foto, localização)
 
 ## Estrutura do projeto
 
@@ -73,6 +98,18 @@ projetofilminho/
 |- cordova/
 |  |- config.xml
 |  \- package.json
+|- scripts/
+|  \- test-public-apis.js
+|- tests/
+|  |- helpers/
+|  |- auth-register.test.js
+|  |- auth-login.test.js
+|  |- friends-flow.test.js
+|  |- friends-evals.test.js
+|  |- profile-lgpd.test.js
+|  |- ui-auth.test.js
+|  |- auth-utils.test.js
+|  \- db-path.test.js
 |- www/
 |  |- index.html
 |  |- css/
@@ -101,6 +138,55 @@ node backend/server.js
 Abra no navegador:
 
 - http://localhost:3000
+
+## Notificações e APK Android
+
+- O app Android usa o package ID `br.com.filminho.app`.
+- A inbox interna e os lembretes locais funcionam sem Firebase.
+- O projeto já inclui `cordova-plugin-firebase-messaging` e um `cordova/google-services.json` para o app Android `br.com.filminho.app`; confira os passos finais da conta Firebase em [docs/firebase-setup.md](/home/mrosa/projetofilminho/docs/firebase-setup.md:1).
+- Para o backend enviar pushes, configure `GOOGLE_APPLICATION_CREDENTIALS` conforme [docs/firebase-setup.md](/home/mrosa/projetofilminho/docs/firebase-setup.md:1).
+
+## Backend hospedado
+
+- Aplicação pública: `https://nuted-ia.dev/filminho`
+- API pública: `https://nuted-ia.dev/filminho/api`
+- O app está configurado para consumir essa API hospedada como padrão.
+
+### Subir com Docker
+
+Na raiz do projeto:
+
+```bash
+docker compose up --build -d
+```
+
+Arquivos de deploy incluídos:
+
+- `Dockerfile`
+- `docker-compose.yml`
+- `deploy/nginx/filminho.conf`
+
+Variáveis esperadas no `.env`:
+
+```bash
+APP_BASE_PATH=/filminho
+APP_PUBLIC_API_URL=https://nuted-ia.dev/filminho/api
+GOOGLE_APPLICATION_CREDENTIALS=/home/mrosa/.secrets/filminho-firebase-admin.json
+FILMINHO_DB=/data/banco_filminho.json
+PORT=3000
+```
+
+### Gerar APK
+
+```bash
+npm install
+cd cordova && npm install && cd ..
+npm run build-cordova-android
+```
+
+APK esperado:
+
+- `cordova/platforms/android/app/build/outputs/apk/debug/app-debug.apk`
 
 ### 2) Execução com Cordova no navegador (fluxo acadêmico)
 
@@ -134,11 +220,15 @@ npx cordova run browser
 | Desenvolvimento web | `npm run start` | Sobe backend e servidor estático em paralelo |
 | Backend | `npm run serve-backend` | Inicia API Express em `http://localhost:3000` |
 | Frontend estático | `npm run serve-frontend` | Serve `www/` em `http://localhost:8080` |
+| Testes | `npm test` | Executa todos os testes (node:test) |
+| Testes APIs | `npm run test:apis` | Testa ViaCEP e IBGE |
 | Build Cordova | `npm run build-cordova` | Copia assets e executa build Cordova |
 | Rodar Android | `npm run cordova-android` | Copia assets e executa app no Android |
 | Rodar iOS | `npm run cordova-ios` | Copia assets e executa app no iOS |
 
 ## Endpoints da API
+
+### Filmes (existentes)
 
 | Método | Endpoint | Descrição |
 | --- | --- | --- |
@@ -147,13 +237,83 @@ npx cordova run browser
 | GET | `/api/filmes/sortear` | Retorna um filme aleatório |
 | GET | `/api/filme/:id` | Retorna detalhes completos do filme |
 | GET | `/api/filmes/buscar?q=...` | Busca filmes por termo |
+
+### Avaliações (existentes)
+
+| Método | Endpoint | Descrição |
+| --- | --- | --- |
 | POST | `/api/avaliar` | Salva nova avaliação |
 | DELETE | `/api/avaliar/:id_avaliacao` | Remove avaliação |
-| GET | `/api/perfil/:id_usuario` | Retorna perfil + avaliações |
-| PUT | `/api/perfil/:id_usuario` | Atualiza nome do usuário |
+
+### Perfil (existentes + novos campos)
+
+| Método | Endpoint | Descrição |
+| --- | --- | --- |
+| GET | `/api/perfil/:id_usuario` | Retorna perfil + avaliações (agora com cidade/uf) |
+| PUT | `/api/perfil/:id_usuario` | Atualiza nome do usuário (valida único) |
+
+### Autenticação (novos)
+
+| Método | Endpoint | Descrição |
+| --- | --- | --- |
+| POST | `/api/auth/registro` | Cria nova conta (valida nome/email únicos, CEP, LGPD) |
+| POST | `/api/auth/login` | Login com email/senha |
+| DELETE | `/api/usuarios/:id` | Exclui conta e todos os dados (LGPD) |
+
+### Amigos (novos)
+
+| Método | Endpoint | Descrição |
+| --- | --- | --- |
+| GET | `/api/usuarios/buscar?nome=...` | Busca usuários por nome (autocomplete) |
+| POST | `/api/amigos/solicitar` | Envia solicitação de amizade |
+| POST | `/api/amigos/aceitar` | Aceita solicitação |
+| POST | `/api/amigos/recusar` | Recusa solicitação |
+| GET | `/api/amigos?usuario_id=...` | Lista amigos |
+| GET | `/api/amigos/pendentes?usuario_id=...` | Lista solicitações recebidas/enviadas |
+| GET | `/api/amigos/:amigo_id/avaliacoes?usuario_id=...` | Avaliações de um amigo (só se for amigo) |
+
+### APIs Públicas (novos proxies)
+
+| Método | Endpoint | Descrição |
+| --- | --- | --- |
+| GET | `/api/cep/:cep` | ViaCEP (cidade/UF por CEP) |
+| GET | `/api/ibge/ufs` | IBGE (lista de estados) |
+
+## Testes de APIs Públicas
+
+Para testar as APIs externas (ViaCEP e IBGE):
+
+```bash
+npm run test:apis
+```
+
+Output esperado:
+```
+=== Testando APIs Públicas ===
+
+✅ ViaCEP OK: SP São Paulo
+✅ IBGE OK: true Total: 27 estados
+
+=== Testes concluídos ===
+```
+
+## Testes automatizados
+
+Para executar todos os testes:
+
+```bash
+npm test
+```
+
+## Dados.gov.br
+
+A API do IBGE (estados) é catalogada no portal dados.gov.br:
+https://dados.gov.br/
 
 ## Observações técnicas
 
 - A chave da TMDb está atualmente definida em `backend/server.js`.
 - Para ambiente de produção, recomenda-se mover a chave para variável de ambiente.
-- O arquivo `backend/banco_filminho.json` funciona como base local para usuários e avaliações.
+- O arquivo `backend/banco_filminho.json` funciona como base local para usuários, avaliações, amizades e solicitações.
+- Senhas são armazenadas com hash scrypt (salt único por usuário).
+- O usuário demo (id 1) tem email `admin@email` e senha `123456`.

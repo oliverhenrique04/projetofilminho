@@ -1,0 +1,19 @@
+services:
+  filminho-backend:
+    build: .
+    container_name: filminho-backend
+    env_file:
+      - .env
+    environment:
+      APP_BASE_PATH: /filminho
+      PORT: 3000
+      FILMINHO_DB: /data/banco_filminho.json
+    volumes:
+      - filminho_data:/data
+      - /home/mrosa/.secrets:/home/mrosa/.secrets:ro
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  filminho_data:
