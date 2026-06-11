@@ -26,12 +26,18 @@
       "cordova-plugin-statusbar": {},
       "cordova-plugin-keyboard": {},
       "cordova-plugin-geolocation": {},
-      "cordova-plugin-local-notification": {}
+      "cordova-plugin-local-notification": {},
+      "cordova-plugin-firebase-messaging": {
+        "ANDROID_FIREBASE_BOM_VERSION": "34.14.0"
+      }
     },
     "platforms": [
       "ios",
       "android",
       "browser"
     ]
+  },
+  "dependencies": {
+    "cordova-plugin-firebase-messaging": "8.0.1"
   }
 }

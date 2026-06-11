@@ -95,6 +95,22 @@
       "criado_em": "2026-06-10T17:54:50.741Z",
       "deletado_em": null,
       "tipo": "user"
+    },
+    {
+      "id": 7,
+      "nome": "Marcos Oliveira",
+      "nome_normalizado": "marcos oliveira",
+      "email": "marcosoliveiracss@gmail.com",
+      "senha_hash": "scrypt$3a73a75961718d19ffba541c6a4d7c44$35cd8b13530ea419dc1fd42971718c6250509f1791c30206051470906f33c700ac7f1c5f69c1356849b841b836f7c452e429683be70a2b872257bc7b4acb36e9",
+      "senha_salt": "3a73a75961718d19ffba541c6a4d7c44",
+      "cep": "72300635",
+      "cidade": "Brasília",
+      "uf": "DF",
+      "consentimento_lgpd": true,
+      "consentimento_em": "2026-06-11T00:04:35.186Z",
+      "criado_em": "2026-06-11T00:04:35.186Z",
+      "deletado_em": null,
+      "tipo": "user"
     }
   ],
   "avaliacoes": [

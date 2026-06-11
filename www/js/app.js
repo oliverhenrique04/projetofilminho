@@ -1,18 +1,7 @@
 var app = new Framework7({ el: '#app', theme: 'auto' });
 
 var MEU_ID_USUARIO = Number(localStorage.getItem('filminho_user_id') || 0);
-
-// Detecta se está rodando atrás do proxy do code-server e ajusta a URL base
-var BASE_URL = (function() {
-  var path = window.location.pathname;
-  // Se o pathname contiver /proxy/ (code-server), usa o path base completo
-  var proxyMatch = path.match(/^(\/vscode\/proxy\/\d+)/);
-  if (proxyMatch) {
-    return proxyMatch[1];
-  }
-  return '';
-})();
-var API_URL = BASE_URL + '/api';
+var API_URL = 'https://nuted-ia.dev/filminho/api';
 var filmeAbertoAgora = null;
 var amigoSelecionadoId = null;
 var estadoNotificacoes = {
@@ -30,9 +19,8 @@ let avaliacaoAtual = {
     localizacao: null
 };
 
-if (!localStorage.getItem('nome_usuario_filminho')) {
-  localStorage.setItem('nome_usuario_filminho', 'Oliver Henrique');
-}
+// O nome será preenchido pelo login/cadastro ou por carregarPerfil()
+// Removido valor padrão hardcocado para evitar nome incorreto.
 
 async function apiFetch(path, options) {
   var controller = new AbortController();
@@ -349,7 +337,7 @@ async function handleLogin(ev) {
     });
     app.dialog.close();
     localStorage.setItem('filminho_user_id', data.id);
-    localStorage.setItem('filminho_user_nome', data.nome);
+    localStorage.setItem('nome_usuario_filminho', data.nome);
     localStorage.setItem('filminho_user_cidade', data.cidade || '');
     localStorage.setItem('filminho_user_uf', data.uf || '');
     localStorage.setItem('filminho_user_token', data.token || '');
@@ -382,7 +370,7 @@ async function handleCadastro(ev) {
     });
     app.dialog.close();
     localStorage.setItem('filminho_user_id', data.id);
-    localStorage.setItem('filminho_user_nome', data.nome);
+    localStorage.setItem('nome_usuario_filminho', data.nome);
     localStorage.setItem('filminho_user_cidade', data.cidade || '');
     localStorage.setItem('filminho_user_uf', data.uf || '');
     localStorage.setItem('filminho_user_token', data.token || '');
@@ -398,7 +386,7 @@ async function handleCadastro(ev) {
 async function logout() {
   await desregistrarTokenPush();
   localStorage.removeItem('filminho_user_id');
-  localStorage.removeItem('filminho_user_nome');
+  localStorage.removeItem('nome_usuario_filminho');
   localStorage.removeItem('filminho_user_cidade');
   localStorage.removeItem('filminho_user_uf');
   localStorage.removeItem('filminho_user_token');
@@ -413,17 +401,13 @@ async function excluirConta() {
   app.dialog.confirm('Tem certeza? Todos os seus dados serão removidos permanentemente.', 'Excluir conta', async () => {
     app.dialog.preloader('Excluindo...');
     try {
-      const res = await fetch(API_URL + '/usuarios/' + MEU_ID_USUARIO, { method: 'DELETE' });
+      await apiFetch('/usuarios/' + MEU_ID_USUARIO, { method: 'DELETE' });
       app.dialog.close();
-      if (res.ok) {
-        logout();
-        app.dialog.alert('Conta excluída com sucesso.');
-      } else {
-        app.dialog.alert('Erro ao excluir conta.');
-      }
+      logout();
+      app.dialog.alert('Conta excluída com sucesso.');
     } catch (e) {
       app.dialog.close();
-      app.dialog.alert('Erro ao conectar com o servidor.');
+      app.dialog.alert(e.message || 'Erro ao excluir conta.');
     }
   });
 }
@@ -472,18 +456,42 @@ function initAuth() {
 // ====== FUNÇÕES DE AMIGOS ====
 async function carregarSolicitacoes() {
   try {
-    const res = await fetch(API_URL + '/amigos/pendentes?usuario_id=' + MEU_ID_USUARIO);
-    const data = await res.json();
-    document.getElementById('friend-requests-received').innerHTML = data.recebidas.map(s =>
-      '<div class="friend-request-item">' +
-        '<span>Usuário #' + s.de_id + '</span>' +
-        '<button class="btn-accept" onclick="aceitarSolicitacao(' + s.id + ')">Aceitar</button>' +
-        '<button class="btn-decline" onclick="recusarSolicitacao(' + s.id + ')">Recusar</button>' +
-      '</div>'
-    ).join('') || '<p style="color:#888;">Nenhuma.</p>';
-    document.getElementById('friend-requests-sent').innerHTML = data.enviadas.map(s =>
-      '<div class="friend-request-item"><span>Enviado para usuário #' + s.para_id + '</span></div>'
-    ).join('') || '<p style="color:#888;">Nenhuma.</p>';
+    const data = await apiFetch('/amigos/pendentes?usuario_id=' + MEU_ID_USUARIO);
+
+    // Buscar nomes dos usuários envolvidos
+    const todosIds = new Set();
+    data.recebidas.forEach(s => todosIds.add(s.de_id));
+    data.enviadas.forEach(s => todosIds.add(s.para_id));
+    const nomes = {};
+
+    // Carregar perfil de cada usuário para obter nome
+    await Promise.all(Array.from(todosIds).map(async (userId) => {
+      try {
+        const perfil = await apiFetch('/perfil/' + userId);
+        if (perfil.perfil) nomes[userId] = perfil.perfil.nome;
+      } catch (e) {
+        nomes[userId] = 'Usuário #' + userId;
+      }
+    }));
+
+    document.getElementById('friend-requests-received').innerHTML = data.recebidas.length === 0
+      ? '<p style="color:#888; text-align:center; padding:12px;">Nenhuma solicitação pendente.</p>'
+      : data.recebidas.map(s =>
+          '<div class="friend-request-item">' +
+            '<span><i class="icon material-icons" style="color:#00e054; font-size:18px; vertical-align:middle;">person_add</i> <strong>' + (nomes[s.de_id] || 'Usuário #' + s.de_id) + '</strong></span>' +
+            '<div><button class="btn-accept" onclick="aceitarSolicitacao(' + s.id + ')">✓ Aceitar</button>' +
+            '<button class="btn-decline" onclick="recusarSolicitacao(' + s.id + ')" style="margin-left:6px;">✗ Recusar</button></div>' +
+          '</div>'
+        ).join('');
+
+    document.getElementById('friend-requests-sent').innerHTML = data.enviadas.length === 0
+      ? '<p style="color:#888; text-align:center; padding:12px;">Nenhuma solicitação enviada.</p>'
+      : data.enviadas.map(s =>
+          '<div class="friend-request-item">' +
+            '<span><i class="icon material-icons" style="color:#ffa500; font-size:18px; vertical-align:middle;">hourglass_empty</i> <strong>' + (nomes[s.para_id] || 'Usuário #' + s.para_id) + '</strong></span>' +
+            '<span style="color:#ffa500; font-size:12px;">Pendente</span>' +
+          '</div>'
+        ).join('');
   } catch (e) {
     console.error('Erro ao carregar solicitações:', e);
   }
@@ -491,9 +499,8 @@ async function carregarSolicitacoes() {
 
 async function aceitarSolicitacao(id) {
   try {
-    await fetch(API_URL + '/amigos/aceitar', {
+    await apiFetch('/amigos/aceitar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ solicitacao_id: id, usuario_id: MEU_ID_USUARIO })
     });
     carregarSolicitacoes();
@@ -507,9 +514,8 @@ async function aceitarSolicitacao(id) {
 
 async function recusarSolicitacao(id) {
   try {
-    await fetch(API_URL + '/amigos/recusar', {
+    await apiFetch('/amigos/recusar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ solicitacao_id: id, usuario_id: MEU_ID_USUARIO })
     });
     carregarSolicitacoes();
@@ -522,8 +528,7 @@ async function recusarSolicitacao(id) {
 
 async function carregarAmigos() {
   try {
-    const res = await fetch(API_URL + '/amigos?usuario_id=' + MEU_ID_USUARIO);
-    const amigos = await res.json();
+    const amigos = await apiFetch('/amigos?usuario_id=' + MEU_ID_USUARIO);
     document.getElementById('friends-list').innerHTML = amigos.map(a =>
       '<div class="friend-item" onclick="abrirAvaliacaoAmigo(' + a.id + ', \'' + a.nome.replace(/'/g, "\\'") + '\')">' +
         '<i class="icon material-icons" style="color:#00e054; font-size:18px; vertical-align:middle;">person</i> ' + a.nome +
@@ -536,8 +541,7 @@ async function carregarAmigos() {
 
 async function abrirAvaliacaoAmigo(amigoId, nome) {
   try {
-    const res = await fetch(API_URL + '/amigos/' + amigoId + '/avaliacoes?usuario_id=' + MEU_ID_USUARIO);
-    const avals = await res.json();
+    const avals = await apiFetch('/amigos/' + amigoId + '/avaliacoes?usuario_id=' + MEU_ID_USUARIO);
     const html = avals.map(a =>
       '<div style="display:flex; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid #1f2228;">' +
         (a.poster_path ? '<img src="https://image.tmdb.org/t/p/w50' + a.poster_path + '" style="width:40px; border-radius:4px;">' : '') +
@@ -567,8 +571,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const box = document.getElementById('friend-suggestions');
     if (termo.length < 2) { box.classList.remove('active'); box.innerHTML = ''; return; }
     try {
-      const res = await fetch(API_URL + '/usuarios/buscar?nome=' + encodeURIComponent(termo) + '&usuario_id=' + MEU_ID_USUARIO);
-      const lista = await res.json();
+      const lista = await apiFetch('/usuarios/buscar?nome=' + encodeURIComponent(termo) + '&usuario_id=' + MEU_ID_USUARIO);
       box.innerHTML = lista.map(u =>
         '<div class="suggestion" data-id="' + u.id + '">' + u.nome + '</div>'
       ).join('');
@@ -586,13 +589,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('friend-request-button').addEventListener('click', async () => {
     if (!amigoSelecionadoId) return app.dialog.alert('Selecione um usuário.');
     try {
-      const res = await fetch(API_URL + '/amigos/solicitar', {
+      await apiFetch('/amigos/solicitar', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ de_id: MEU_ID_USUARIO, para_id: amigoSelecionadoId })
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) return app.dialog.alert(data.erro || 'Erro ao enviar solicitação.');
       amigoSelecionadoId = null;
       input.value = '';
       carregarSolicitacoes();
@@ -611,9 +611,9 @@ carregarFilmesHome('tendencias', 'lista-tendencias');
 initAuth();
 
 async function carregarPerfil() {
+  if (!MEU_ID_USUARIO) return;
   try {
-    var res = await fetch(API_URL + '/perfil/' + MEU_ID_USUARIO);
-    var dados = await res.json();
+    var dados = await apiFetch('/perfil/' + MEU_ID_USUARIO);
 
     var meuNomeSalvo = localStorage.getItem('nome_usuario_filminho');
     var cidadeSalva = localStorage.getItem('filminho_user_cidade') || '';
@@ -676,13 +676,12 @@ async function removerAvaliacao(event, id_avaliacao) {
     app.dialog.confirm('Tem certeza que deseja remover este filme do seu diário?', 'Remover Avaliação', async () => {
       app.dialog.preloader('Removendo...');
       try {
-          const response = await fetch(`${API_URL}/avaliar/${id_avaliacao}`, { method: 'DELETE' });
-          if (!response.ok) throw new Error('Falha ao remover.');
+          await apiFetch('/avaliar/' + id_avaliacao, { method: 'DELETE' });
           app.dialog.close();
           carregarPerfil();
       } catch (e) {
           app.dialog.close();
-          app.dialog.alert('Não foi possível remover a avaliação.');
+          app.dialog.alert(e.message || 'Não foi possível remover a avaliação.');
       }
     });
 }
@@ -916,8 +915,8 @@ async function salvarAvaliacaoFinal() {
   }
 
   try {
-    const res = await fetch(API_URL + '/avaliar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    await apiFetch('/avaliar', {
+      method: 'POST',
       body: JSON.stringify({
           id_usuario: MEU_ID_USUARIO,
           id_filme: filmeAbertoAgora.id,
@@ -929,7 +928,6 @@ async function salvarAvaliacaoFinal() {
           localizacao: avaliacaoAtual.localizacao
       })
     });
-    if (!res.ok) throw new Error('Resposta do servidor não foi OK');
     app.dialog.close();
     fecharPopupAvaliacao();
     app.popup.close('#popup-detalhes');
@@ -939,7 +937,7 @@ async function salvarAvaliacaoFinal() {
     carregarNotificacoes();
   } catch (e) {
     app.dialog.close();
-    app.dialog.alert('Ocorreu um erro ao salvar sua avaliação.');
+    app.dialog.alert(e.message || 'Ocorreu um erro ao salvar sua avaliação.');
   }
 }
 
@@ -1059,12 +1057,6 @@ function editarPerfil() {
   var cidadeAtual = localStorage.getItem('filminho_user_cidade') || '';
   var ufAtual = localStorage.getItem('filminho_user_uf') || '';
 
-  var overlay = document.getElementById('edit-perfil-overlay');
-  if (!overlay) {
-    console.error('Overlay de edição não encontrado!');
-    return;
-  }
-
   var inputNome = document.getElementById('edit-nome');
   var inputCidade = document.getElementById('edit-cidade');
   var selectUF = document.getElementById('edit-uf');
@@ -1075,10 +1067,10 @@ function editarPerfil() {
 
   // Popular UF com dados do Brasil
   if (selectUF) {
-    selectUF.innerHTML = '<option value="">UF</option>';
-    fetch(API_URL + '/ibge/ufs')
-      .then(function(r) { return r.json(); })
+    selectUF.innerHTML = '<option value="">Carregando...</option>';
+    apiFetch('/ibge/ufs')
       .then(function(ufs) {
+        selectUF.innerHTML = '<option value="">Selecione</option>';
         ufs.forEach(function(uf) {
           var opt = document.createElement('option');
           opt.value = uf.sigla;
@@ -1088,7 +1080,7 @@ function editarPerfil() {
         });
       })
       .catch(function() {
-        // Fallback se API IBGE falhar
+        selectUF.innerHTML = '<option value="">Selecione</option>';
         ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].forEach(function(sigla) {
           var opt = document.createElement('option');
           opt.value = sigla;
@@ -1099,15 +1091,14 @@ function editarPerfil() {
       });
   }
 
-  overlay.style.display = 'flex';
+  app.popup.open('#popup-editar-perfil');
 }
 
 function fecharEditarPerfil() {
-  var overlay = document.getElementById('edit-perfil-overlay');
-  if (overlay) overlay.style.display = 'none';
+  app.popup.close('#popup-editar-perfil');
 }
 
-function salvarEditarPerfil() {
+async function salvarEditarPerfil() {
   var novoNome = document.getElementById('edit-nome').value.trim();
   var novaCidade = document.getElementById('edit-cidade').value.trim();
   var novaUF = document.getElementById('edit-uf').value;
@@ -1115,53 +1106,39 @@ function salvarEditarPerfil() {
     app.dialog.alert('Nome não pode ser vazio.');
     return;
   }
-  
-  // Mostrar loading
-  var loading = document.createElement('div');
-  loading.id = 'loading-overlay';
-  loading.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:50000;display:flex;align-items:center;justify-content:center;';
-  loading.innerHTML = '<div style="background:#1a1c23;padding:20px 30px;border-radius:12px;border:2px solid #00e054;color:#fff;font-size:16px;">Salvando...</div>';
-  document.body.appendChild(loading);
-  
-  fetch(API_URL + '/perfil/' + MEU_ID_USUARIO, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nome: novoNome, cidade: novaCidade, uf: novaUF })
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (loading.parentNode) loading.parentNode.removeChild(loading);
-      if (data.erro) {
-        app.dialog.alert(data.erro);
-        return;
-      }
-      fecharEditarPerfil();
-      localStorage.setItem('nome_usuario_filminho', novoNome);
-      localStorage.setItem('filminho_user_cidade', novaCidade);
-      localStorage.setItem('filminho_user_uf', novaUF);
-      carregarPerfil();
-      app.toast.create({ text: 'Perfil atualizado!', closeTimeout: 2000, position: 'center' }).open();
-    })
-    .catch(function() {
-      if (loading.parentNode) loading.parentNode.removeChild(loading);
-      app.dialog.alert('Erro ao atualizar perfil.');
+
+  app.dialog.preloader('Salvando...');
+  try {
+    await apiFetch('/perfil/' + MEU_ID_USUARIO, {
+      method: 'PUT',
+      body: JSON.stringify({ nome: novoNome, cidade: novaCidade, uf: novaUF })
     });
+    app.dialog.close();
+    fecharEditarPerfil();
+    localStorage.setItem('nome_usuario_filminho', novoNome);
+    localStorage.setItem('filminho_user_cidade', novaCidade);
+    localStorage.setItem('filminho_user_uf', novaUF);
+    carregarPerfil();
+    app.toast.create({ text: 'Perfil atualizado!', closeTimeout: 2000, position: 'center' }).open();
+  } catch (e) {
+    app.dialog.close();
+    app.dialog.alert(e.message || 'Erro ao atualizar perfil.');
+  }
 }
 
-// Event listeners para o overlay de edição de perfil
+// Event listeners para ações da interface
 document.addEventListener('DOMContentLoaded', function() {
   var btnSalvar = document.getElementById('btn-salvar-edit-perfil');
-  var btnCancelar = document.getElementById('btn-cancelar-edit-perfil');
-  var btnFechar = document.getElementById('btn-fechar-edit-perfil');
   var markAllButton = document.getElementById('mark-all-read-button');
   if (btnSalvar) btnSalvar.addEventListener('click', salvarEditarPerfil);
-  if (btnCancelar) btnCancelar.addEventListener('click', fecharEditarPerfil);
-  if (btnFechar) btnFechar.addEventListener('click', fecharEditarPerfil);
   if (markAllButton) {
-    markAllButton.addEventListener('click', function() {
-      marcarTodasNotificacoesLidas().catch(function(error) {
-        app.dialog.alert(error.message || 'Nao foi possivel atualizar notificações.');
-      });
+    markAllButton.addEventListener('click', async function() {
+      try {
+        await marcarTodasNotificacoesLidas();
+        app.toast.create({ text: 'Notificações marcadas como lidas!', closeTimeout: 2000, position: 'center' }).open();
+      } catch (error) {
+        app.dialog.alert(error.message || 'Não foi possível atualizar notificações.');
+      }
     });
   }
 });

@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -8,12 +10,28 @@ const { createPushClient } = require('./firebase-admin');
 
 const app = express();
 const pushClient = createPushClient();
+const APP_BASE_PATH = (process.env.APP_BASE_PATH || '/filminho').replace(/\/+$/, '') || '/filminho';
+const WWW_ROOT = path.join(__dirname, '../www');
 app.use(cors());
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-app.use(express.static(path.join(__dirname, '../www')));
+app.use((req, res, next) => {
+    if (req.url === APP_BASE_PATH || req.url.startsWith(APP_BASE_PATH + '/')) {
+        req.url = req.url.slice(APP_BASE_PATH.length) || '/';
+    }
+    next();
+});
+
+app.use(express.static(WWW_ROOT));
+app.use(APP_BASE_PATH, express.static(WWW_ROOT));
+app.get(APP_BASE_PATH, (req, res) => {
+    res.sendFile(path.join(WWW_ROOT, 'index.html'));
+});
+app.get(APP_BASE_PATH + '/', (req, res) => {
+    res.sendFile(path.join(WWW_ROOT, 'index.html'));
+});
 
 const TMDB_API_KEY = 'fa8b322b4dffd455e219a710fc5910e9';
 const PORTA = process.env.PORT || 3000;
@@ -180,6 +198,16 @@ function serializarUsuarioPublico(usuario) {
     return usuarioPublico;
 }
 
+// Middleware de autenticação: retorna o usuário autenticado ou responde 401/403
+function requireAuth(req, res, banco) {
+    const usuario = autenticarUsuarioPorToken(req, banco);
+    if (!usuario) {
+        res.status(401).json({ erro: 'Não autenticado.' });
+        return null;
+    }
+    return usuario;
+}
+
 async function enviarPushParaUsuario(banco, usuarioId, notificacao) {
     const tokens = banco.dispositivos_push
         .filter((dispositivo) => dispositivo.usuario_id === usuarioId && dispositivo.ativo)
@@ -267,6 +295,53 @@ function garantirEstruturaBanco() {
         console.log('MIGRAÇÃO: Usuário demo (id 1) criado.');
     }
 
+    // Seed usuários de teste (Michel e Marcos) se não existirem
+    if (!banco.usuarios.find(u => u.id === 6)) {
+        const salt = gerarSalt();
+        banco.usuarios.push({
+            id: 6,
+            nome: 'Michel Junio',
+            nome_normalizado: normalizarNome('Michel Junio'),
+            email: 'micheljunioferreira@gmail.com',
+            senha_hash: hashSenha('123456', salt),
+            senha_salt: salt,
+            cep: '72300635',
+            cidade: 'Brasília',
+            uf: 'DF',
+            consentimento_lgpd: true,
+            consentimento_em: new Date().toISOString(),
+            criado_em: new Date().toISOString(),
+            deletado_em: null,
+            tipo: 'user',
+            token: '',
+        });
+        mudou = true;
+        console.log('MIGRAÇÃO: Usuário Michel Junio (id 6) criado.');
+    }
+
+    if (!banco.usuarios.find(u => u.id === 7)) {
+        const salt = gerarSalt();
+        banco.usuarios.push({
+            id: 7,
+            nome: 'Marcos Oliveira',
+            nome_normalizado: normalizarNome('Marcos Oliveira'),
+            email: 'marcosoliveiracss@gmail.com',
+            senha_hash: hashSenha('123456', salt),
+            senha_salt: salt,
+            cep: '72300635',
+            cidade: 'Brasília',
+            uf: 'DF',
+            consentimento_lgpd: true,
+            consentimento_em: new Date().toISOString(),
+            criado_em: new Date().toISOString(),
+            deletado_em: null,
+            tipo: 'user',
+            token: '',
+        });
+        mudou = true;
+        console.log('MIGRAÇÃO: Usuário Marcos Oliveira (id 7) criado.');
+    }
+
     if (mudou) salvarBanco(banco);
     return banco;
 }
@@ -320,6 +395,12 @@ app.post('/api/avaliar', (req, res) => {
         }
 
         const banco = lerBanco();
+        const usuarioAutenticado = requireAuth(req, res, banco);
+        if (!usuarioAutenticado) return;
+        if (usuarioAutenticado.id !== id_usuario) {
+            return res.status(403).json({ erro: 'Não autorizado.' });
+        }
+
         const novaAvaliacao = {
             id_avaliacao: Date.now(),
             id_usuario,
@@ -345,16 +426,18 @@ app.delete('/api/avaliar/:id_avaliacao', (req, res) => {
     try {
         const idAvaliacao = parseInt(req.params.id_avaliacao);
         const banco = lerBanco();
-        const tamanhoOriginal = banco.avaliacoes.length;
-        
-        banco.avaliacoes = banco.avaliacoes.filter(a => a.id_avaliacao !== idAvaliacao);
-        
-        if (banco.avaliacoes.length < tamanhoOriginal) {
-            salvarBanco(banco);
-            res.status(200).json({ mensagem: 'Avaliação removida com sucesso.' });
-        } else {
-            res.status(404).json({ erro: 'Avaliação não encontrada.' });
+        const usuarioAutenticado = requireAuth(req, res, banco);
+        if (!usuarioAutenticado) return;
+
+        const avaliacao = banco.avaliacoes.find(a => a.id_avaliacao === idAvaliacao);
+        if (!avaliacao) return res.status(404).json({ erro: 'Avaliação não encontrada.' });
+        if (avaliacao.id_usuario !== usuarioAutenticado.id) {
+            return res.status(403).json({ erro: 'Não autorizado. Esta avaliação não pertence ao seu usuário.' });
         }
+
+        banco.avaliacoes = banco.avaliacoes.filter(a => a.id_avaliacao !== idAvaliacao);
+        salvarBanco(banco);
+        res.status(200).json({ mensagem: 'Avaliação removida com sucesso.' });
     } catch (error) {
         console.error('Erro ao remover avaliação:', error);
         res.status(500).json({ erro: 'Erro no servidor ao remover avaliação.' });
@@ -377,6 +460,12 @@ app.put('/api/perfil/:id_usuario', (req, res) => {
     const id = parseInt(req.params.id_usuario);
     const { nome, cidade, uf } = req.body;
     const banco = lerBanco();
+    const usuarioAutenticado = requireAuth(req, res, banco);
+    if (!usuarioAutenticado) return;
+    if (usuarioAutenticado.id !== id) {
+        return res.status(403).json({ erro: 'Não autorizado. Você só pode editar seu próprio perfil.' });
+    }
+
     const usuario = banco.usuarios.find(u => u.id === id);
 
     if (usuario) {
@@ -487,6 +576,11 @@ app.get('/api/usuarios/buscar', (req, res) => {
 app.delete('/api/usuarios/:id', (req, res) => {
     const id = parseInt(req.params.id, 10);
     const banco = lerBanco();
+    const usuarioAutenticado = requireAuth(req, res, banco);
+    if (!usuarioAutenticado) return;
+    if (usuarioAutenticado.id !== id) {
+        return res.status(403).json({ erro: 'Não autorizado. Você só pode excluir sua própria conta.' });
+    }
 
     banco.usuarios = banco.usuarios.filter(u => u.id !== id);
     banco.avaliacoes = banco.avaliacoes.filter(a => a.id_usuario !== id);
@@ -507,6 +601,11 @@ app.post('/api/amigos/solicitar', async (req, res) => {
     if (!de_id || !para_id) return res.status(400).json({ erro: 'Dados obrigatórios.' });
     if (de_id === para_id) return res.status(400).json({ erro: 'Não pode solicitar a si mesmo.' });
     const banco = lerBanco();
+    const usuarioAutenticado = requireAuth(req, res, banco);
+    if (!usuarioAutenticado) return;
+    if (usuarioAutenticado.id !== de_id) {
+        return res.status(403).json({ erro: 'Não autorizado. Você só pode enviar solicitações em seu próprio nome.' });
+    }
     const remetente = buscarUsuarioPorId(banco, de_id);
     const destino = buscarUsuarioPorId(banco, para_id);
 
@@ -545,7 +644,13 @@ app.post('/api/amigos/solicitar', async (req, res) => {
 
 app.post('/api/amigos/aceitar', async (req, res) => {
     const { solicitacao_id, usuario_id } = req.body;
+    if (!solicitacao_id || !usuario_id) return res.status(400).json({ erro: 'Dados obrigatórios.' });
     const banco = lerBanco();
+    const usuarioAutenticado = requireAuth(req, res, banco);
+    if (!usuarioAutenticado) return;
+    if (usuarioAutenticado.id !== usuario_id) {
+        return res.status(403).json({ erro: 'Não autorizado.' });
+    }
     const solicitacao = banco.solicitacoes_amizade.find(s => s.id === solicitacao_id);
     if (!solicitacao || solicitacao.status !== 'pendente') return res.status(404).json({ erro: 'Solicitação inválida.' });
     if (solicitacao.para_id !== usuario_id) return res.status(403).json({ erro: 'Não autorizado.' });
@@ -582,7 +687,13 @@ app.post('/api/amigos/aceitar', async (req, res) => {
 
 app.post('/api/amigos/recusar', (req, res) => {
     const { solicitacao_id, usuario_id } = req.body;
+    if (!solicitacao_id || !usuario_id) return res.status(400).json({ erro: 'Dados obrigatórios.' });
     const banco = lerBanco();
+    const usuarioAutenticado = requireAuth(req, res, banco);
+    if (!usuarioAutenticado) return;
+    if (usuarioAutenticado.id !== usuario_id) {
+        return res.status(403).json({ erro: 'Não autorizado.' });
+    }
     const solicitacao = banco.solicitacoes_amizade.find(s => s.id === solicitacao_id);
     if (!solicitacao || solicitacao.status !== 'pendente') return res.status(404).json({ erro: 'Solicitação inválida.' });
     if (solicitacao.para_id !== usuario_id) return res.status(403).json({ erro: 'Não autorizado.' });
@@ -594,7 +705,13 @@ app.post('/api/amigos/recusar', (req, res) => {
 
 app.get('/api/amigos', (req, res) => {
     const usuarioId = parseInt(req.query.usuario_id || '0', 10);
+    if (!usuarioId) return res.status(400).json({ erro: 'Dados obrigatórios.' });
     const banco = lerBanco();
+    const usuarioAutenticado = requireAuth(req, res, banco);
+    if (!usuarioAutenticado) return;
+    if (usuarioAutenticado.id !== usuarioId) {
+        return res.status(403).json({ erro: 'Não autorizado.' });
+    }
     const ids = banco.amizades.filter(a => a.usuario_id === usuarioId).map(a => a.amigo_id);
     const amigos = banco.usuarios.filter(u => ids.includes(u.id)).map(u => ({ id: u.id, nome: u.nome }));
     res.json(amigos);
@@ -602,7 +719,13 @@ app.get('/api/amigos', (req, res) => {
 
 app.get('/api/amigos/pendentes', (req, res) => {
     const usuarioId = parseInt(req.query.usuario_id || '0', 10);
+    if (!usuarioId) return res.status(400).json({ erro: 'Dados obrigatórios.' });
     const banco = lerBanco();
+    const usuarioAutenticado = requireAuth(req, res, banco);
+    if (!usuarioAutenticado) return;
+    if (usuarioAutenticado.id !== usuarioId) {
+        return res.status(403).json({ erro: 'Não autorizado.' });
+    }
     const recebidas = banco.solicitacoes_amizade.filter(s => s.para_id === usuarioId && s.status === 'pendente');
     const enviadas = banco.solicitacoes_amizade.filter(s => s.de_id === usuarioId && s.status === 'pendente');
     res.json({ recebidas, enviadas });
@@ -611,7 +734,13 @@ app.get('/api/amigos/pendentes', (req, res) => {
 app.get('/api/amigos/:amigo_id/avaliacoes', (req, res) => {
     const amigoId = parseInt(req.params.amigo_id, 10);
     const usuarioId = parseInt(req.query.usuario_id || '0', 10);
+    if (!usuarioId) return res.status(400).json({ erro: 'Dados obrigatórios.' });
     const banco = lerBanco();
+    const usuarioAutenticado = requireAuth(req, res, banco);
+    if (!usuarioAutenticado) return;
+    if (usuarioAutenticado.id !== usuarioId) {
+        return res.status(403).json({ erro: 'Não autorizado.' });
+    }
 
     const ehAmigo = banco.amizades.some(a => a.usuario_id === usuarioId && a.amigo_id === amigoId);
     if (!ehAmigo) return res.status(403).json({ erro: 'Não autorizado.' });
@@ -808,7 +937,8 @@ app.listen(PORTA, '0.0.0.0', () => {
     console.log('=========================================');
     console.log('🍿 FILMINHO ONLINE!');
     console.log(`✅ Backend rodando perfeitamente na porta ${PORTA}`);
+    console.log(`📍 Base path ativo: ${APP_BASE_PATH}`);
     console.log(`🔗 Segure CTRL e clique no link para abrir:`);
-    console.log(`👉 http://localhost:${PORTA}`);
+    console.log(`👉 http://localhost:${PORTA}${APP_BASE_PATH}`);
     console.log('=========================================');
 });

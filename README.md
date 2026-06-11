@@ -143,8 +143,38 @@ Abra no navegador:
 
 - O app Android usa o package ID `br.com.filminho.app`.
 - A inbox interna e os lembretes locais funcionam sem Firebase.
-- Para push real via FCM, adicione `cordova-plugin-firebase-messaging`, coloque um `google-services.json` válido em `cordova/google-services.json` e siga [docs/firebase-setup.md](/home/mrosa/projetofilminho/docs/firebase-setup.md:1).
+- O projeto já inclui `cordova-plugin-firebase-messaging` e um `cordova/google-services.json` para o app Android `br.com.filminho.app`; confira os passos finais da conta Firebase em [docs/firebase-setup.md](/home/mrosa/projetofilminho/docs/firebase-setup.md:1).
 - Para o backend enviar pushes, configure `GOOGLE_APPLICATION_CREDENTIALS` conforme [docs/firebase-setup.md](/home/mrosa/projetofilminho/docs/firebase-setup.md:1).
+
+## Backend hospedado
+
+- Aplicação pública: `https://nuted-ia.dev/filminho`
+- API pública: `https://nuted-ia.dev/filminho/api`
+- O app está configurado para consumir essa API hospedada como padrão.
+
+### Subir com Docker
+
+Na raiz do projeto:
+
+```bash
+docker compose up --build -d
+```
+
+Arquivos de deploy incluídos:
+
+- `Dockerfile`
+- `docker-compose.yml`
+- `deploy/nginx/filminho.conf`
+
+Variáveis esperadas no `.env`:
+
+```bash
+APP_BASE_PATH=/filminho
+APP_PUBLIC_API_URL=https://nuted-ia.dev/filminho/api
+GOOGLE_APPLICATION_CREDENTIALS=/home/mrosa/.secrets/filminho-firebase-admin.json
+FILMINHO_DB=/data/banco_filminho.json
+PORT=3000
+```
 
 ### Gerar APK
 

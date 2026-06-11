@@ -1,8 +1,8 @@
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 
-async function startServer({ port, dbPath } = {}) {
-  const env = { ...process.env };
+async function startServer({ port, dbPath, extraEnv } = {}) {
+  const env = { ...process.env, ...(extraEnv || {}) };
   if (port) env.PORT = String(port);
   if (dbPath) env.FILMINHO_DB = dbPath;
 

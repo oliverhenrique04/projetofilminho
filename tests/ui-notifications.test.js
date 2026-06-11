@@ -19,6 +19,8 @@ test('notifications tab markup and badge exist', () => {
 test('notifications app logic exists', () => {
   const appJs = fs.readFileSync(path.join(__dirname, '../www/js/app.js'), 'utf-8');
 
+  assert.match(appJs, /https:\/\/nuted-ia\.dev\/filminho\/api/);
+  assert.doesNotMatch(appJs, /var API_URL = BASE_URL \+ '\/api';/);
   assert.match(appJs, /async function apiFetch\s*\(/);
   assert.match(appJs, /async function carregarNotificacoes\s*\(/);
   assert.match(appJs, /function renderizarNotificacoes\s*\(/);
