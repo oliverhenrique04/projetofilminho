@@ -10,6 +10,7 @@ var estadoNotificacoes = {
   pushInicializado: false
 };
 var TOKEN_PUSH_LOCAL = 'filminho_push_token';
+var intervaloPolling = null;
 
 // Objeto para armazenar o estado da avaliação atual
 let avaliacaoAtual = {
@@ -113,6 +114,8 @@ function renderizarNotificacoes() {
   atualizarBadgeNotificacoes();
 }
 
+var ultimoTotalNotificacoes = 0;
+
 async function carregarNotificacoes() {
   if (!MEU_ID_USUARIO) return;
 
@@ -122,6 +125,16 @@ async function carregarNotificacoes() {
       return !item.lida_em;
     }).length;
     renderizarNotificacoes();
+
+    // Se novas notificações chegaram e são de amizade, recarregar solicitações
+    if (estadoNotificacoes.itens.length > ultimoTotalNotificacoes) {
+      var novas = estadoNotificacoes.itens.slice(0, estadoNotificacoes.itens.length - ultimoTotalNotificacoes);
+      var temAmizade = novas.some(function(n) { return n.tipo && n.tipo.indexOf('amizade') !== -1; });
+      if (temAmizade) {
+        carregarSolicitacoes();
+      }
+    }
+    ultimoTotalNotificacoes = estadoNotificacoes.itens.length;
   } catch (error) {
     console.warn('Erro ao carregar notificações:', error.message);
   }
@@ -287,6 +300,25 @@ async function carregarDadosIniciaisDoApp() {
     carregarNotificacoes()
   ]);
   await inicializarNotificacoesDoDispositivo();
+  iniciarPolling();
+}
+
+function iniciarPolling() {
+  pararPolling();
+  // Polling a cada 30s: notificações, solicitações e amigos
+  intervaloPolling = setInterval(function() {
+    if (!MEU_ID_USUARIO) { pararPolling(); return; }
+    carregarNotificacoes();
+    carregarSolicitacoes();
+    carregarAmigos();
+  }, 30000);
+}
+
+function pararPolling() {
+  if (intervaloPolling) {
+    clearInterval(intervaloPolling);
+    intervaloPolling = null;
+  }
 }
 
 // ====== FUNÇÕES DE AUTENTICAÇÃO ====
@@ -384,6 +416,7 @@ async function handleCadastro(ev) {
 }
 
 async function logout() {
+  pararPolling();
   await desregistrarTokenPush();
   localStorage.removeItem('filminho_user_id');
   localStorage.removeItem('nome_usuario_filminho');
@@ -588,18 +621,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('friend-request-button').addEventListener('click', async () => {
     if (!amigoSelecionadoId) return app.dialog.alert('Selecione um usuário.');
+    app.dialog.preloader('Enviando...');
     try {
       await apiFetch('/amigos/solicitar', {
         method: 'POST',
         body: JSON.stringify({ de_id: MEU_ID_USUARIO, para_id: amigoSelecionadoId })
       });
+      app.dialog.close();
       amigoSelecionadoId = null;
       input.value = '';
+      document.getElementById('friend-suggestions').classList.remove('active');
       carregarSolicitacoes();
       carregarNotificacoes();
       app.toast.create({ text: 'Solicitação enviada!', closeTimeout: 2000, position: 'center' }).open();
     } catch (e) {
-      app.dialog.alert('Erro ao enviar solicitação.');
+      app.dialog.close();
+      app.dialog.alert(e.message || 'Erro ao enviar solicitação.');
     }
   });
 });
